@@ -58,14 +58,6 @@ export function Layout({ children }) {
           </button>
 
           <button
-            onClick={() => navigate('/trainee/mobile')}
-            className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400"
-          >
-            <Smartphone className="w-4 h-4" />
-            <span>Mobile App</span>
-          </button>
-
-          <button
             onClick={() => navigate('/scan')}
             className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
           >

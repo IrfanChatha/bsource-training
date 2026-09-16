@@ -27,7 +27,7 @@ import {
   Zap
 } from "lucide-react";
 
-export default function TraineeMobileApp() {
+export default function TraineeMobileApp({ embedded = false } = {}) {
   const { currentUser, navigate, showToast, darkMode, setDarkMode } = useApp();
   const [activeTab, setActiveTab] = useState("today");
   const [viewMode, setViewMode] = useState("device");
@@ -244,9 +244,9 @@ export default function TraineeMobileApp() {
       showToast("Error saving quiz attempt", "error");
     }
   };
-  const filteredTrainings = trainings.filter((t) => {
+  const filteredCourses = trainings.filter((t) => {
     const isAttended = attendance.some((a) => a.training_id === t.id);
-    if (courseFilter === "in_progress" && t.status !== "in_progress") return false;
+    if (courseFilter === "attended" && !isAttended) return false;
     if (courseFilter === "upcoming" && t.status !== "upcoming") return false;
     if (courseFilter === "completed" && !isAttended && t.status !== "completed") return false;
     if (searchQuery.trim()) {
@@ -260,55 +260,58 @@ export default function TraineeMobileApp() {
   const avgScore = attempts.length > 0 ? Math.round(attempts.reduce((sum, a) => sum + a.percentage, 0) / attempts.length) : 0;
   const activeTrainingToday = trainings.find((t) => t.status === "in_progress") || trainings.find((t) => t.status === "upcoming") || trainings[0];
   const hasAttendedToday = activeTrainingToday ? attendance.some((a) => a.training_id === activeTrainingToday.id) : false;
-  return <div className="w-full py-2 sm:py-6 flex flex-col items-center justify-center">
+  return (
+    <div className={`w-full ${embedded ? 'py-0' : 'py-2 sm:py-6'} flex flex-col items-center justify-center`}>
       {
     /* Top Desktop Controls: Frame Mode, Return to Portal */
   }
-      <div className="w-full max-w-md md:max-w-2xl flex items-center justify-between mb-4 px-3 text-xs">
-        <button
+      {!embedded && (
+        <div className="w-full max-w-md md:max-w-2xl flex items-center justify-between mb-4 px-3 text-xs">
+          <button
     onClick={() => navigate("/trainee/dashboard")}
     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold transition-colors"
   >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Desktop Portal</span>
-        </button>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Desktop Portal</span>
+          </button>
 
-        <div className="flex items-center gap-2">
-          {
+          <div className="flex items-center gap-2">
+            {
     /* Viewport switch for desktop preview */
   }
-          <div className="hidden md:flex items-center p-0.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-            <button
+            <div className="hidden md:flex items-center p-0.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              <button
     onClick={() => setViewMode("device")}
     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${viewMode === "device" ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm" : "hover:text-slate-900 dark:hover:text-white"}`}
   >
-              <Smartphone className="w-3 h-3" />
-              <span>Device Frame</span>
-            </button>
-            <button
+                <Smartphone className="w-3 h-3" />
+                <span>Device Frame</span>
+              </button>
+              <button
     onClick={() => setViewMode("fullscreen")}
     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${viewMode === "fullscreen" ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm" : "hover:text-slate-900 dark:hover:text-white"}`}
   >
-              <Maximize2 className="w-3 h-3" />
-              <span>Fluid Mobile</span>
-            </button>
-          </div>
+                <Maximize2 className="w-3 h-3" />
+                <span>Fluid Mobile</span>
+              </button>
+            </div>
 
-          <button
+            <button
     onClick={() => setDarkMode(!darkMode)}
     className="p-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
     title="Toggle Dark Mode"
   >
-            {darkMode ? "\u2600\uFE0F" : "\u{1F319}"}
-          </button>
+              {darkMode ? "☀️" : "🌙"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {
     /* Main Smartphone Shell Container */
   }
       <div
-    className={`w-full transition-all duration-300 ${viewMode === "device" ? "max-w-[420px] rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden ring-1 ring-slate-800/20 bg-slate-50 dark:bg-slate-950 min-h-[820px] flex flex-col relative" : "max-w-md w-full rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[780px] flex flex-col relative overflow-hidden"}`}
+    className={`w-full transition-all duration-300 ${embedded ? "max-w-md w-full rounded-2xl md:rounded-3xl border-0 md:border border-slate-200 dark:border-slate-800 shadow-none md:shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[calc(100vh-5rem)] flex flex-col relative overflow-hidden" : viewMode === "device" ? "max-w-[420px] rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden ring-1 ring-slate-800/20 bg-slate-50 dark:bg-slate-950 min-h-[820px] flex flex-col relative" : "max-w-md w-full rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[780px] flex flex-col relative overflow-hidden"}`}
   >
         {
     /* Device Notch & Status Bar (Simulated Mobile OS) */
@@ -1258,10 +1261,9 @@ export default function TraineeMobileApp() {
         {viewMode === "device" && <div className="w-32 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto my-1 absolute bottom-0.5 left-1/2 -translate-x-1/2 pointer-events-none" />}
       </div>
 
-      {
-    /* Course Detail Modal Sheet */
-  }
-      {selectedCourseDetail && <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      {/* Course Detail Modal Sheet */}
+      {selectedCourseDetail && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
@@ -1273,9 +1275,9 @@ export default function TraineeMobileApp() {
                 </h3>
               </div>
               <button
-    onClick={() => setSelectedCourseDetail(null)}
-    className="text-slate-400 hover:text-slate-600 text-lg font-bold"
-  >
+                onClick={() => setSelectedCourseDetail(null)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer"
+              >
                 ✕
               </button>
             </div>
@@ -1301,37 +1303,37 @@ export default function TraineeMobileApp() {
 
             <div className="pt-2 flex gap-2">
               <button
-    onClick={() => {
-      setSelectedTrainingId(selectedCourseDetail.id);
-      setSelectedCourseDetail(null);
-      setActiveTab("scan");
-    }}
-    className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md"
-  >
+                onClick={() => {
+                  setSelectedTrainingId(selectedCourseDetail.id);
+                  setSelectedCourseDetail(null);
+                  setActiveTab("scan");
+                }}
+                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              >
                 <QrCode className="w-4 h-4" />
                 <span>Check-in QR</span>
               </button>
 
               <button
-    onClick={() => {
-      const q = availableQuizzes[selectedCourseDetail.id];
-      setSelectedCourseDetail(null);
-      if (q) startQuizSession(q);
-      else setActiveTab("quiz");
-    }}
-    className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md"
-  >
+                onClick={() => {
+                  const q = availableQuizzes[selectedCourseDetail.id];
+                  setSelectedCourseDetail(null);
+                  if (q) startQuizSession(q);
+                  else setActiveTab("quiz");
+                }}
+                className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              >
                 <FileQuestion className="w-4 h-4" />
                 <span>Take Quiz</span>
               </button>
             </div>
           </div>
-        </div>}
+        </div>
+      )}
 
-      {
-    /* Verified Certificate Modal */
-  }
-      {showCertificateModal && <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+      {/* Verified Certificate Modal */}
+      {showCertificateModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-2xl text-center animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-600 mx-auto flex items-center justify-center shadow-inner">
               <Award className="w-8 h-8" />
@@ -1352,19 +1354,21 @@ export default function TraineeMobileApp() {
             <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/60 text-xs text-slate-700 dark:text-slate-300 space-y-1 text-left">
               <p><span className="font-bold">Score:</span> {showCertificateModal.score}/10 ({showCertificateModal.percentage}%)</p>
               <p><span className="font-bold">Credential:</span> TT-CERT-{showCertificateModal.id.slice(-6).toUpperCase()}</p>
-              <p><span className="font-bold">Verified:</span> Synchronized to Google Sheets Database</p>
+              <p><span className="font-bold">Verified:</span> Synchronized to Supabase Database</p>
             </div>
 
             <button
-    onClick={() => {
-      showToast("Certificate saved to device photo roll", "success");
-      setShowCertificateModal(null);
-    }}
-    className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black text-xs"
-  >
+              onClick={() => {
+                showToast("Certificate saved to device photo roll", "success");
+                setShowCertificateModal(null);
+              }}
+              className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black text-xs cursor-pointer"
+            >
               Done
             </button>
           </div>
-        </div>}
-    </div>;
-};
+        </div>
+      )}
+    </div>
+  );
+}

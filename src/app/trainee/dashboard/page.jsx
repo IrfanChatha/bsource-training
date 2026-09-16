@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
+import TraineeMobileApp from '../mobile/page';
 import {
   QrCode,
   CheckCircle2,
@@ -9,8 +10,7 @@ import {
   Calendar,
   Clock,
   ArrowRight,
-  Award,
-  Smartphone
+  Award
 } from 'lucide-react';
 
 export default function TraineeDashboardPage() {
@@ -20,6 +20,19 @@ export default function TraineeDashboardPage() {
   const [attempts, setAttempts] = useState([]);
   const [availableQuizzes, setAvailableQuizzes] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isMobileScreen, setIsMobileScreen] = useState(false);
+
+  // Auto-detect mobile screen size (< 768px)
+  useEffect(() => {
+    const checkScreen = () => {
+      if (typeof window !== 'undefined') {
+        setIsMobileScreen(window.innerWidth < 768);
+      }
+    };
+    checkScreen();
+    window.addEventListener('resize', checkScreen);
+    return () => window.removeEventListener('resize', checkScreen);
+  }, []);
 
   const loadTraineeData = async () => {
     setLoading(true);
@@ -66,6 +79,11 @@ export default function TraineeDashboardPage() {
       if (typeof unsub === 'function') unsub();
     };
   }, [currentUser?.id]);
+
+  // If on mobile screen size, auto-render native mobile view
+  if (isMobileScreen) {
+    return <TraineeMobileApp embedded={true} />;
+  }
 
   return (
     <div className="space-y-6">

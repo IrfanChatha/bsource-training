@@ -134,7 +134,6 @@ export function Sidebar({ isOpen, onClose }) {
               </div>
               {navItem('My Dashboard', '/trainee/dashboard', <BookOpen className="w-4 h-4" />)}
               {navItem('Scan QR Attendance', '/scan', <QrCode className="w-4 h-4" />, 'Camera')}
-              {navItem('Mobile App Portal', '/trainee/mobile', <Smartphone className="w-4 h-4" />, 'Mobile')}
             </div>
           )}
 
