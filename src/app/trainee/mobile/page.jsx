@@ -24,11 +24,14 @@ import {
   Search,
   MapPin,
   User,
-  Zap
+  Zap,
+  GraduationCap,
+  Sun,
+  Moon
 } from "lucide-react";
 
 export default function TraineeMobileApp({ embedded = false } = {}) {
-  const { currentUser, navigate, showToast, darkMode, setDarkMode } = useApp();
+  const { currentUser, navigate, showToast, darkMode, setDarkMode, switchRole } = useApp();
   const [activeTab, setActiveTab] = useState("today");
   const [viewMode, setViewMode] = useState("device");
   const [currentTime, setCurrentTime] = useState("09:41");
@@ -84,14 +87,14 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       const allAtts = [];
       for (const t of published) {
         const attList = await supabaseService.getAttendance(t.id);
-        const myAtts = attList.filter((a) => a.trainee_id === currentUser.id);
+        const myAtts = attList.filter((a) => a.trainee_id === currentUser?.id);
         allAtts.push(...myAtts);
       }
       setAttendance(allAtts);
       const allAttempts = [];
       for (const t of published) {
         const attList = await supabaseService.getAttemptsForTraining(t.id);
-        const myAttempts = attList.filter((a) => a.trainee_id === currentUser.id);
+        const myAttempts = attList.filter((a) => a.trainee_id === currentUser?.id);
         allAttempts.push(...myAttempts);
       }
       setAttempts(allAttempts);
@@ -104,8 +107,10 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
   useEffect(() => {
     loadData();
     const unsub = supabaseService.onRealtimeUpdate(() => loadData());
-    return () => unsub();
-  }, [currentUser.id]);
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [currentUser?.id]);
   const startCamera = async () => {
     try {
       const html5QrCode = new Html5Qrcode("mobile-qr-reader");
@@ -244,17 +249,18 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       showToast("Error saving quiz attempt", "error");
     }
   };
-  const filteredCourses = trainings.filter((t) => {
+  const filteredTrainings = trainings.filter((t) => {
     const isAttended = attendance.some((a) => a.training_id === t.id);
     if (courseFilter === "attended" && !isAttended) return false;
     if (courseFilter === "upcoming" && t.status !== "upcoming") return false;
     if (courseFilter === "completed" && !isAttended && t.status !== "completed") return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      return t.title.toLowerCase().includes(q) || t.trainer_name && t.trainer_name.toLowerCase().includes(q) || t.location && t.location.toLowerCase().includes(q);
+      return (t.title && t.title.toLowerCase().includes(q)) || (t.trainer_name && t.trainer_name.toLowerCase().includes(q)) || (t.location && t.location.toLowerCase().includes(q));
     }
     return true;
   });
+  const filteredCourses = filteredTrainings;
   const totalAttendedCount = attendance.length;
   const passedQuizzesCount = attempts.filter((a) => a.percentage >= 70).length;
   const avgScore = attempts.length > 0 ? Math.round(attempts.reduce((sum, a) => sum + a.percentage, 0) / attempts.length) : 0;
@@ -307,70 +313,78 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
         </div>
       )}
 
-      {
-    /* Main Smartphone Shell Container */
-  }
+      {/* Main Smartphone Shell Container */}
       <div
-    className={`w-full transition-all duration-300 ${embedded ? "max-w-md w-full rounded-2xl md:rounded-3xl border-0 md:border border-slate-200 dark:border-slate-800 shadow-none md:shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[calc(100vh-5rem)] flex flex-col relative overflow-hidden" : viewMode === "device" ? "max-w-[420px] rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden ring-1 ring-slate-800/20 bg-slate-50 dark:bg-slate-950 min-h-[820px] flex flex-col relative" : "max-w-md w-full rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[780px] flex flex-col relative overflow-hidden"}`}
-  >
-        {
-    /* Device Notch & Status Bar (Simulated Mobile OS) */
-  }
-        <div className="pt-2 px-6 pb-2 flex items-center justify-between text-slate-800 dark:text-slate-200 text-xs font-semibold select-none shrink-0 border-b border-slate-200/50 dark:border-slate-800/40">
-          <span>{currentTime}</span>
-
-          {
-    /* Dynamic Island / Camera Notch */
-  }
-          <div className="w-24 h-4 bg-slate-900 dark:bg-slate-800 rounded-full flex items-center justify-center gap-1.5 px-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[9px] text-slate-300 font-mono tracking-tight">TrainTrack</span>
+        className={`w-full transition-all duration-300 ${
+          embedded
+            ? "max-w-md w-full border-0 shadow-none bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col relative overflow-hidden"
+            : viewMode === "device"
+            ? "max-w-[420px] rounded-[48px] border-[10px] border-slate-900 dark:border-slate-800 shadow-2xl overflow-hidden ring-1 ring-slate-800/20 bg-slate-50 dark:bg-slate-950 min-h-[820px] flex flex-col relative"
+            : "max-w-md w-full rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg bg-slate-50 dark:bg-slate-950 min-h-[780px] flex flex-col relative overflow-hidden"
+        }`}
+      >
+        {/* Device Notch & Status Bar (Only in simulated Desktop Device Frame Preview) */}
+        {!embedded && viewMode === "device" && (
+          <div className="pt-2 px-6 pb-2 flex items-center justify-between text-slate-800 dark:text-slate-200 text-xs font-semibold select-none shrink-0 border-b border-slate-200/50 dark:border-slate-800/40">
+            <span>{currentTime}</span>
+            <div className="w-24 h-4 bg-slate-900 dark:bg-slate-800 rounded-full flex items-center justify-center gap-1.5 px-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[9px] text-slate-300 font-mono tracking-tight">TrainTrack</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px]">
+              <span>5G</span>
+              <span>100%</span>
+            </div>
           </div>
+        )}
 
-          <div className="flex items-center gap-1 text-[11px]">
-            <span>5G</span>
-            <span>100%</span>
-          </div>
-        </div>
-
-        {
-    /* Mobile App Header */
-  }
-        <div className="px-4 py-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between shrink-0 sticky top-0 z-30">
+        {/* Dedicated Mobile App Header (Fixed on Mobile View) */}
+        <div className={`px-4 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between shrink-0 ${
+          embedded ? "fixed top-0 left-0 right-0 max-w-md mx-auto" : "sticky top-0"
+        } z-40 shadow-xs`}>
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 text-white font-black text-sm flex items-center justify-center shadow-md shadow-indigo-500/20">
-              {currentUser.full_name.charAt(0)}
+              {(currentUser?.full_name || currentUser?.name || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-xs font-extrabold text-slate-900 dark:text-white truncate max-w-[140px]">
-                  {currentUser.full_name}
+                <h2 className="text-xs font-extrabold text-slate-900 dark:text-white truncate max-w-[130px]">
+                  {currentUser?.full_name || currentUser?.name || 'Trainee'}
                 </h2>
-                <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[9px] font-bold">
+                <span className="px-1.5 py-0.2 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold">
                   Trainee
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[150px]">
-                {currentUser.department || "Enterprise Ops"}
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
+                {currentUser?.department || "Enterprise Ops"}
               </p>
             </div>
           </div>
 
-          {
-    /* Live Google Sheets Status */
-  }
+          {/* Quick Role Switcher to Trainer Hub + Theme Toggle */}
           <div className="flex items-center gap-1.5">
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200/50">
-              <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
-              <span>Sheets Synced</span>
-            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              title="Toggle Dark / Light Mode"
+            >
+              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
+            </button>
+            <button
+              onClick={() => switchRole('trainer')}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200/60 dark:border-indigo-800 shadow-xs transition-all cursor-pointer"
+              title="Switch to Trainer Workspace"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Trainer</span>
+            </button>
           </div>
         </div>
 
-        {
-    /* Scrollable Mobile App Body */
-  }
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-24">
+        {/* Scrollable Mobile App Body */}
+        <div className={`flex-1 overflow-y-auto px-4 space-y-4 ${
+          embedded ? "pt-20 pb-28" : "py-4 pb-28"
+        }`}>
           {
     /* TAB 1: TODAY / HOME */
   }
@@ -1191,10 +1205,8 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
             </div>}
         </div>
 
-        {
-    /* Persistent Bottom Mobile Navigation Bar */
-  }
-        <div className="absolute bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 px-2 py-1.5 z-40">
+        {/* Persistent Sticky Bottom Mobile Navigation Bar */}
+        <div className={`${embedded ? "fixed bottom-0 left-0 right-0 max-w-md mx-auto" : "absolute bottom-0 left-0 right-0"} bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 px-2 py-1.5 z-40 shadow-lg`}>
           <div className="grid grid-cols-5 items-center">
             {
     /* Tab: Today */

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export function Navbar({ onToggleSidebar, isPublicPage = false }) {
-  const { currentUser, darkMode, setDarkMode, navigate, showToast } = useApp();
+  const { currentUser, darkMode, setDarkMode, navigate, showToast, switchRole } = useApp();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef(null);
 
@@ -78,7 +78,32 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Dynamic Workspace Mode Switcher (Visible on medium+ screens and in dropdown) */}
+        {!isPublicPage && currentUser && (
+          <div className="hidden sm:flex items-center">
+            {currentUser.role === 'trainer' ? (
+              <button
+                onClick={() => switchRole('trainee')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800 text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="Switch perspective to Trainee Portal (Attend sessions, take quizzes)"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Switch to Trainee</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => switchRole('trainer')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="Switch perspective to Trainer Hub (Create courses, project QR, build AI quizzes)"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Switch to Trainer</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Dark / Light Mode Toggle */}
         <button
           onClick={() => setDarkMode(!darkMode)}
@@ -130,12 +155,16 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
+              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2.5">
                 {/* Profile Overview Header */}
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50">
-                      {currentUser?.role || 'User'}
+                    <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-md border ${
+                      currentUser?.role === 'trainer'
+                        ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200/50'
+                        : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200/50'
+                    }`}>
+                      {currentUser?.role === 'trainer' ? 'Trainer Mode' : currentUser?.role === 'trainee' ? 'Trainee Mode' : currentUser?.role || 'User'}
                     </span>
                     <span className="text-[11px] text-slate-400 truncate">
                       {currentUser?.department || 'Enterprise'}
@@ -147,6 +176,45 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate" suppressHydrationWarning>
                     {currentUser?.email || 'user@enterprise.internal'}
                   </p>
+                </div>
+
+                {/* Mode Switcher Inside Dropdown */}
+                <div className="space-y-1.5 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
+                    Switch Workspace Mode
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        switchRole('trainer');
+                        setShowUserMenu(false);
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        currentUser?.role === 'trainer'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>Trainer</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        switchRole('trainee');
+                        setShowUserMenu(false);
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        currentUser?.role === 'trainee'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Trainee</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Account Actions */}

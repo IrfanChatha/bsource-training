@@ -281,8 +281,19 @@ export class SupabaseService {
   }
 
   async switchRole(role) {
-    const email = `${role}@enterprise.internal`;
-    return this.login(email, 'password123');
+    if (this.currentUser) {
+      const updatedUser = { ...this.currentUser, role };
+      this.setCurrentUser(updatedUser);
+      if (updatedUser.id) {
+        try {
+          await this.updateUserProfile(updatedUser.id, { role });
+        } catch (e) {
+          console.warn('Error syncing role in switchRole:', e);
+        }
+      }
+      return updatedUser;
+    }
+    return null;
   }
 
   async getAllUsers() {
@@ -767,17 +778,41 @@ export class SupabaseService {
     const attempts = await this.getAttemptsForTraining(trainingId);
     const allUsers = await this.getAllUsers();
     
-    const trainees = allUsers.filter(u => u.role === 'trainee');
-    
-    return trainees.map(t => {
-      const hasAttended = atts.find(a => a.trainee_id === t.id);
-      const attempt = attempts.find(a => a.trainee_id === t.id);
+    // Include all registered users or attendees for this training
+    const participantMap = new Map();
+
+    allUsers.forEach(u => {
+      if (u.role !== 'admin') {
+        participantMap.set(u.id, {
+          trainee_id: u.id,
+          name: u.full_name || u.name,
+          email: u.email,
+          department: u.department || 'Operations'
+        });
+      }
+    });
+
+    // Also include any attendee records from attendance table if user profile wasn't in allUsers
+    atts.forEach(a => {
+      if (!participantMap.has(a.trainee_id)) {
+        participantMap.set(a.trainee_id, {
+          trainee_id: a.trainee_id,
+          name: a.trainee_name || 'Participant',
+          email: a.trainee_email || '',
+          department: 'Participant'
+        });
+      }
+    });
+
+    return Array.from(participantMap.values()).map(t => {
+      const hasAttended = atts.find(a => a.trainee_id === t.trainee_id);
+      const attempt = attempts.find(a => a.trainee_id === t.trainee_id);
       
       return {
-        trainee_id: t.id,
-        name: t.full_name,
+        trainee_id: t.trainee_id,
+        name: t.name,
         email: t.email,
-        department: t.department || 'Engineering',
+        department: t.department,
         attended: !!hasAttended,
         marked_at: hasAttended?.marked_at,
         quiz_status: attempt ? attempt.status : 'not_started',

@@ -74,41 +74,37 @@ export function AppProvider({ children }) {
     }, 4000);
   };
 
-  const switchRole = async (newRole) => {
-    const mockUsers = {
-      trainer: {
-        id: 'usr_trainer_01',
-        name: 'Sarah Jenkins',
-        full_name: 'Sarah Jenkins',
-        email: 'sarah.j@enterprise.internal',
-        role: 'trainer',
-        department: 'Global Security & Operations',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
-      },
-      trainee: {
-        id: 'usr_trainee_01',
-        name: 'Alex Rivera',
-        full_name: 'Alex Rivera',
-        email: 'alex.r@enterprise.internal',
-        role: 'trainee',
-        department: 'FinTech Engineering',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-      },
-      admin: {
-        id: 'usr_admin_01',
-        name: 'David Vance',
-        full_name: 'David Vance',
-        email: 'd.vance@enterprise.internal',
-        role: 'admin',
-        department: 'Executive Governance & L&D',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'
-      }
+  const switchRole = async (newRole, shouldNavigate = true) => {
+    if (!currentUser) return;
+    const updatedUser = {
+      ...currentUser,
+      role: newRole
     };
 
-    const targetUser = mockUsers[newRole] || mockUsers.trainer;
-    setCurrentUser(targetUser);
-    supabaseService.setCurrentUser(targetUser);
-    showToast(`Switched active perspective to ${newRole.toUpperCase()}`, 'info');
+    setCurrentUser(updatedUser);
+    supabaseService.setCurrentUser(updatedUser);
+
+    // Persist to Supabase Database (profiles table)
+    if (updatedUser.id) {
+      try {
+        await supabaseService.updateUserProfile(updatedUser.id, { role: newRole });
+      } catch (e) {
+        console.warn('Could not sync role change to database:', e);
+      }
+    }
+
+    const roleTitle = newRole === 'trainer' ? 'Trainer Hub' : newRole === 'trainee' ? 'Trainee Portal' : 'Admin';
+    showToast(`Switched active workspace to ${roleTitle}`, 'info');
+
+    if (shouldNavigate) {
+      if (newRole === 'trainer') {
+        navigate('/trainer/trainings');
+      } else if (newRole === 'trainee') {
+        navigate('/trainee/dashboard');
+      } else if (newRole === 'admin') {
+        navigate('/admin/dashboard');
+      }
+    }
   };
 
   const navigate = (path) => {

@@ -34,10 +34,10 @@ export default function LandingPage() {
           Enterprise Training & Attendance Platform
         </div>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
-          Choose Your Portal
+          One Universal Portal, Dual Power
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-          Sign up or sign in as a Trainer or Trainee. Once authenticated, you are automatically routed to your dedicated workspace.
+          Create an account to host trainings as an Instructor or join courses as an Attendee. Switch workspaces seamlessly at any time.
         </p>
       </div>
 
@@ -89,13 +89,13 @@ export default function LandingPage() {
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
               <div className="grid grid-cols-2 gap-2.5">
                 <button
-                  onClick={() => navigate('/signup?role=trainer')}
+                  onClick={() => navigate('/signup')}
                   className="py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 text-center transition-all cursor-pointer"
                 >
-                  Sign Up as Trainer
+                  Create Account
                 </button>
                 <button
-                  onClick={() => navigate('/login?role=trainer')}
+                  onClick={() => navigate('/login')}
                   className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs text-center transition-all cursor-pointer"
                 >
                   Trainer Sign In
@@ -149,13 +149,13 @@ export default function LandingPage() {
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
               <div className="grid grid-cols-2 gap-2.5">
                 <button
-                  onClick={() => navigate('/signup?role=trainee')}
+                  onClick={() => navigate('/signup')}
                   className="py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 text-center transition-all cursor-pointer"
                 >
-                  Sign Up as Trainee
+                  Create Account
                 </button>
                 <button
-                  onClick={() => navigate('/login?role=trainee')}
+                  onClick={() => navigate('/login')}
                   className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs text-center transition-all cursor-pointer"
                 >
                   Trainee Sign In

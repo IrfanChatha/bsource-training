@@ -9,11 +9,12 @@ import {
   Shield,
   BookOpen,
   Smartphone,
-  LogOut
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 
 export function Sidebar({ isOpen, onClose }) {
-  const { pathname, navigate, currentUser, showToast } = useApp();
+  const { pathname, navigate, currentUser, showToast, switchRole } = useApp();
   const current = pathname || '/';
 
   const isCurrent = (path) => {
@@ -102,6 +103,48 @@ export function Sidebar({ isOpen, onClose }) {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Quick Workspace Switcher Widget */}
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-900/60 dark:to-slate-800/40 border border-indigo-100 dark:border-slate-700/70 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Active Mode
+              </span>
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                currentUser?.role === 'trainer'
+                  ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                  : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                {currentUser?.role === 'trainer' ? 'Trainer' : currentUser?.role === 'trainee' ? 'Trainee' : 'Admin'}
+              </span>
+            </div>
+
+            {currentUser?.role === 'trainer' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  switchRole('trainee');
+                  if (onClose) onClose();
+                }}
+                className="w-full py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Switch to Trainee</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  switchRole('trainer');
+                  if (onClose) onClose();
+                }}
+                className="w-full py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Switch to Trainer</span>
+              </button>
+            )}
           </div>
 
           {/* Role specific navigation */}
