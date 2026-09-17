@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
+import { STORAGE_KEYS, readStored } from '@/lib/storage';
 import {
   Sparkles,
   Bot,
@@ -57,7 +58,7 @@ export default function TrainerQuizPage({ params }) {
             const combined = materials.map((m) => m.extracted_text).join('\n\n');
             setMaterialText(combined);
           } else if (typeof window !== 'undefined') {
-            const cached = localStorage.getItem('traintrack_active_material_text');
+            const cached = readStored(STORAGE_KEYS.activeMaterialText);
             if (cached) setMaterialText(cached);
           }
         }

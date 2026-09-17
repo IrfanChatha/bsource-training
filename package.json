@@ -1,5 +1,5 @@
 {
-  "name": "traintrack-nextjs",
+  "name": "bsource-training",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -26,6 +26,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "postcss": "^8.4.38",

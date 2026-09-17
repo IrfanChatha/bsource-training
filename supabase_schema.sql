@@ -1,5 +1,5 @@
 -- ==============================================================================
--- TrainTrack AI - Complete Supabase Database Schema & Seed Script
+-- BSource Training - Complete Supabase Database Schema & Seed Script
 -- Run this script in your Supabase SQL Editor (Dashboard -> SQL Editor -> New Query -> Run)
 -- Project: https://emylzqifahduucsdatlp.supabase.co
 -- ==============================================================================

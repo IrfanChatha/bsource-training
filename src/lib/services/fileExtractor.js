@@ -1,5 +1,5 @@
 /**
- * Document text extraction and chunking service for TrainTrack AI.
+ * Document text extraction and chunking service for BSource Training.
  * Supports PDF, PPTX, DOCX, and TXT files.
  */
 

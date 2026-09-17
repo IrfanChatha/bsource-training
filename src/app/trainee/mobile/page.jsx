@@ -329,7 +329,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
             <span>{currentTime}</span>
             <div className="w-24 h-4 bg-slate-900 dark:bg-slate-800 rounded-full flex items-center justify-center gap-1.5 px-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] text-slate-300 font-mono tracking-tight">TrainTrack</span>
+              <span className="text-[9px] text-slate-300 font-mono tracking-tight">BSource</span>
             </div>
             <div className="flex items-center gap-1 text-[11px]">
               <span>5G</span>
@@ -1121,7 +1121,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
               <div className="rounded-3xl p-5 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/20 shadow-xl relative overflow-hidden space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono tracking-widest text-indigo-300 uppercase">
-                    TRAINTRACK PASSPORT
+                    BSOURCE TRAINING PASSPORT
                   </span>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </div>

@@ -81,7 +81,7 @@ export default function LoginPage() {
             <Sparkles className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Sign In to TrainTrack AI
+            Sign In to BSource Training
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Enter your verified email and password to access your role dashboard.

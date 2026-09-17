@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, use } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
+import { STORAGE_KEYS, writeStored } from '@/lib/storage';
 import {
   UploadCloud,
   FileText,
@@ -295,7 +296,7 @@ If an enterprise endpoint is lost, stolen, or exhibits unauthorized activity, th
                 <button
                   onClick={() => {
                     if (typeof window !== 'undefined') {
-                      localStorage.setItem('traintrack_active_material_text', selectedMaterial.extracted_text);
+                      writeStored(STORAGE_KEYS.activeMaterialText, selectedMaterial.extracted_text);
                     }
                     navigate('/trainer/quiz');
                   }}

@@ -1,4 +1,5 @@
 import { createClient } from '../../utils/supabase/client.js';
+import { STORAGE_KEYS, readStored, writeStored, clearStored } from '../storage';
 
 export const supabase = createClient();
 
@@ -8,7 +9,7 @@ export class SupabaseService {
     this.updateCallbacks = [];
 
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('traintrack_user');
+      const savedUser = readStored(STORAGE_KEYS.user);
       if (savedUser) {
         try { this.currentUser = JSON.parse(savedUser); } catch (e) {}
       }
@@ -45,11 +46,11 @@ export class SupabaseService {
             }
 
             this.currentUser = profile;
-            localStorage.setItem('traintrack_user', JSON.stringify(profile));
+            writeStored(STORAGE_KEYS.user, JSON.stringify(profile));
             this.notifyListeners();
           } else if (event === 'SIGNED_OUT') {
             this.currentUser = null;
-            localStorage.removeItem('traintrack_user');
+            clearStored(STORAGE_KEYS.user);
             this.notifyListeners();
           }
         });
@@ -94,7 +95,7 @@ export class SupabaseService {
   setCurrentUser(user) {
     this.currentUser = user;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('traintrack_user', JSON.stringify(user));
+      writeStored(STORAGE_KEYS.user, JSON.stringify(user));
     }
     this.notifyListeners();
   }
@@ -275,7 +276,7 @@ export class SupabaseService {
     } catch (e) {}
     this.currentUser = null;
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('traintrack_user');
+      clearStored(STORAGE_KEYS.user);
     }
     this.notifyListeners();
   }

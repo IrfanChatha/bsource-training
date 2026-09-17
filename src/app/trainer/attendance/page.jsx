@@ -222,7 +222,7 @@ export default function TrainerAttendancePage({ params }) {
                 Projected Live QR Code
               </h2>
               <p className="text-[11px] text-slate-400">
-                Scan with phone camera or TrainTrack scanner
+                Scan with phone camera or BSource Training scanner
               </p>
             </div>
 
@@ -237,7 +237,7 @@ export default function TrainerAttendancePage({ params }) {
           <div className="my-6 p-5 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center justify-center group relative">
             {session ? (
               <QRCodeSVG
-                value={qrPayload || 'https://traintrack.ai'}
+                value={qrPayload || 'https://bsourcetraining.com'}
                 size={230}
                 level="H"
                 includeMargin={true}

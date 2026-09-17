@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
   const exportCSV = (type) => {
     let headers = [];
     let rows = [];
-    let filename = `traintrack_${type}_${Date.now()}.csv`;
+    let filename = `bsource_${type}_${Date.now()}.csv`;
 
     if (type === 'attendance') {
       headers = ['Attendance ID', 'Training ID', 'Trainee ID', 'Trainee Name', 'Timestamp', 'Token Verified'];

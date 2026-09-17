@@ -70,7 +70,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-black text-lg tracking-tight text-slate-900 dark:text-white">
-                TrainTrack<span className="text-indigo-600 dark:text-indigo-400">AI</span>
+                BSource<span className="text-indigo-600 dark:text-indigo-400"> Training</span>
               </span>
             </div>
           </div>

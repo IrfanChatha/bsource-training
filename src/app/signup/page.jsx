@@ -309,7 +309,7 @@ export default function SignUpPage() {
                 className="mt-1 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
               <label htmlFor="terms" className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed cursor-pointer">
-                I agree to the TrainTrack AI enterprise data policy, dynamic attendance logging, and AI assessment terms.
+                I agree to the BSource Training enterprise data policy, dynamic attendance logging, and AI assessment terms.
               </label>
             </div>
 

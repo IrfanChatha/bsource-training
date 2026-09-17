@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabaseService } from '../lib/services/supabaseService';
+import { STORAGE_KEYS, readStored, writeStored } from '../lib/storage';
 
 const AppContext = createContext(null);
 
@@ -29,7 +30,7 @@ export function AppProvider({ children }) {
     setMounted(true);
     if (typeof window !== 'undefined') {
       // Sync Theme
-      const savedTheme = localStorage.getItem('traintrack_theme');
+      const savedTheme = readStored(STORAGE_KEYS.theme);
       const isDark = savedTheme === 'dark';
       setDarkMode(isDark);
       if (isDark) {
@@ -39,7 +40,7 @@ export function AppProvider({ children }) {
       }
 
       // Sync User Profile
-      const savedUser = localStorage.getItem('traintrack_user');
+      const savedUser = readStored(STORAGE_KEYS.user);
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
@@ -55,7 +56,7 @@ export function AppProvider({ children }) {
     const nextVal = typeof val === 'boolean' ? val : !darkMode;
     setDarkMode(nextVal);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('traintrack_theme', nextVal ? 'dark' : 'light');
+      writeStored(STORAGE_KEYS.theme, nextVal ? 'dark' : 'light');
       if (nextVal) {
         document.documentElement.classList.add('dark');
         document.documentElement.setAttribute('data-theme', 'dark');

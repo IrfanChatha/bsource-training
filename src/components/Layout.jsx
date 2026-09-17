@@ -22,6 +22,12 @@ export function Layout({ children }) {
   // Public pages without dashboard sidebar
   const isPublicPage = currentPath === '/' || currentPath === '/login' || currentPath === '/signup' || currentPath === '/register';
 
+  // The marketing homepage ships its own header, footer and design system,
+  // so it renders outside the product chrome entirely.
+  if (currentPath === '/') {
+    return children;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors flex flex-col font-sans">
       {/* Show outer Navbar on desktop, or for non-trainee / public pages */}
