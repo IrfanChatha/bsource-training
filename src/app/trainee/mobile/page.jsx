@@ -3,6 +3,8 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { supabaseService } from "@/lib/services/supabaseService";
 import { Html5Qrcode } from "html5-qrcode";
+import { cameraUnavailableReason, describeCameraError, qrboxFor } from "@/lib/camera";
+import { supabaseService as authService } from "@/lib/services/supabaseService";
 import confetti from "canvas-confetti";
 import {
   QrCode,
@@ -27,11 +29,50 @@ import {
   Zap,
   GraduationCap,
   Sun,
-  Moon
+  Moon,
+  LogOut,
+  UserCheck,
+  ChevronDown
 } from "lucide-react";
 
 export default function TraineeMobileApp({ embedded = false } = {}) {
-  const { currentUser, navigate, showToast, darkMode, setDarkMode, switchRole } = useApp();
+  const { currentUser, navigate, showToast, darkMode, setDarkMode, switchRole, switchingRole } =
+    useApp();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+
+  // Admin is not self-assignable, so an admin who switched could not switch
+  // back; the toggle is only meaningful for trainers and trainees.
+  const canSwitchWorkspace =
+    currentUser?.role === 'trainer' || currentUser?.role === 'trainee';
+  const otherWorkspace = currentUser?.role === 'trainer' ? 'trainee' : 'trainer';
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [accountMenuOpen]);
+
+  const handleSignOut = async () => {
+    setAccountMenuOpen(false);
+    try {
+      await authService.logout();
+      showToast('Successfully signed out.', 'info');
+    } catch (e) {
+      showToast(e?.message || 'Signed out locally, but the server call failed.', 'warning');
+    } finally {
+      navigate('/login');
+    }
+  };
   const [activeTab, setActiveTab] = useState("today");
   const [viewMode, setViewMode] = useState("device");
   const [currentTime, setCurrentTime] = useState("09:41");
@@ -42,6 +83,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
   const [loading, setLoading] = useState(true);
   const [selectedTrainingId, setSelectedTrainingId] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   const [manualToken, setManualToken] = useState("");
   const [isProcessingAttendance, setIsProcessingAttendance] = useState(false);
   const [attendanceSuccess, setAttendanceSuccess] = useState(null);
@@ -123,12 +165,20 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
   }
 
   const startCamera = async () => {
+    const blocked = cameraUnavailableReason();
+    if (blocked) {
+      setCameraError(blocked);
+      showToast(blocked, "warning");
+      return;
+    }
+
+    setCameraError(null);
     try {
       const html5QrCode = new Html5Qrcode("mobile-qr-reader");
       scannerRef.current = html5QrCode;
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
+        { fps: 10, qrbox: qrboxFor },
         (decodedText) => {
           stopCamera();
           let cleanToken = decodedText;
@@ -153,9 +203,12 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
         }
       );
       setCameraActive(true);
-    } catch {
+    } catch (err) {
+      scannerRef.current = null;
       setCameraActive(false);
-      showToast("Camera not accessible. Please enter token or use Use Live Token.", "warning");
+      const reason = describeCameraError(err);
+      setCameraError(reason);
+      showToast(reason, "error");
     }
   };
   useEffect(() => () => stopCamera(), []);
@@ -359,8 +412,8 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                 <h2 className="text-xs font-extrabold text-slate-900 dark:text-white truncate max-w-[130px]">
                   {currentUser?.full_name || currentUser?.name || 'Trainee'}
                 </h2>
-                <span className="px-1.5 py-0.2 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold">
-                  Trainee
+                <span className="px-1.5 py-0.2 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-bold capitalize">
+                  {currentUser?.role || 'Trainee'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[140px]">
@@ -369,23 +422,91 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
             </div>
           </div>
 
-          {/* Quick Role Switcher to Trainer Hub + Theme Toggle */}
+          {/* Theme toggle + account menu (workspace switch, sign out) */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setDarkMode(!darkMode)}
               className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              aria-label="Toggle dark mode"
               title="Toggle Dark / Light Mode"
             >
               {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-600" />}
             </button>
-            <button
-              onClick={() => switchRole('trainer')}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200/60 dark:border-indigo-800 shadow-xs transition-all cursor-pointer"
-              title="Switch to Trainer Workspace"
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Trainer</span>
-            </button>
+
+            <div className="relative" ref={accountMenuRef}>
+              <button
+                onClick={() => setAccountMenuOpen((open) => !open)}
+                aria-label="Account menu"
+                aria-expanded={accountMenuOpen}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold border border-slate-200/70 dark:border-slate-700 shadow-xs transition-all cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5" />
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {accountMenuOpen && (
+                <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 z-50 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {currentUser?.full_name || currentUser?.name || 'User'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                      {currentUser?.email}
+                    </p>
+                    <p className="text-[10px] text-slate-400 capitalize mt-0.5">
+                      {currentUser?.role} &middot; {currentUser?.department || 'Enterprise'}
+                    </p>
+                  </div>
+
+                  {canSwitchWorkspace && (
+                    <button
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        switchRole(otherWorkspace);
+                      }}
+                      disabled={switchingRole}
+                      className={`w-full py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer ${
+                        otherWorkspace === 'trainer'
+                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20'
+                      }`}
+                    >
+                      {otherWorkspace === 'trainer' ? (
+                        <GraduationCap className="w-3.5 h-3.5" />
+                      ) : (
+                        <UserCheck className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {switchingRole
+                          ? 'Switching...'
+                          : `Switch to ${otherWorkspace === 'trainer' ? 'Trainer Hub' : 'Trainee Portal'}`}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      navigate('/trainee/dashboard');
+                    }}
+                    className="w-full py-2 px-2.5 rounded-xl text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span>Open desktop portal</span>
+                  </button>
+
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full py-2 px-2.5 rounded-xl text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -768,12 +889,9 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                   {
     /* Real Scanner Container */
   }
-                  <div
-    id="mobile-qr-reader"
-    className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"}`}
-  />
+                  <div id="mobile-qr-reader" className="w-full h-full" />
 
-                  {!cameraActive && <div className="text-center p-6 space-y-3">
+                  {!cameraActive && <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-3 bg-slate-950/90">
                       <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
                         <Camera className="w-8 h-8" />
                       </div>
@@ -786,6 +904,11 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
   >
                         Launch Camera Viewfinder
                       </button>
+                      {cameraError && (
+                        <p className="text-[11px] text-rose-300 leading-relaxed max-w-xs mx-auto">
+                          {cameraError}
+                        </p>
+                      )}
                     </div>}
 
                   {cameraActive && <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">

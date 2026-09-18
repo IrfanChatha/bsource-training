@@ -232,6 +232,28 @@ export default function AdminDashboardPage() {
     }
   };
 
+  /**
+   * Reassigns a training to another trainer.
+   *
+   * Only the training's own trainer (or an admin) may open its attendance
+   * session or edit its quiz, so a training created by an admin was unusable
+   * by the trainer meant to run it, with no way to hand it over.
+   */
+  const handleReassignTrainer = async (training, newTrainerId) => {
+    const owner = users.find((u) => u.id === newTrainerId);
+    if (!owner) return;
+    try {
+      await supabaseService.updateTraining(training.id, {
+        trainer_id: owner.id,
+        trainer_name: owner.full_name || owner.name || 'Trainer',
+      });
+      showToast(`"${training.title}" is now run by ${owner.full_name || owner.email}.`, 'success');
+      await loadAdminData();
+    } catch (err) {
+      showToast(err?.message || 'Failed to reassign the training', 'error');
+    }
+  };
+
   const handleStatusChange = async (training, newStatus) => {
     try {
       await supabaseService.updateTraining(training.id, { status: newStatus });
@@ -768,7 +790,27 @@ export default function AdminDashboardPage() {
                       </td>
 
                       <td className="py-3 font-medium text-slate-700 dark:text-slate-300">
-                        {training.trainer_name || 'Staff Instructor'}
+                        <select
+                          value={
+                            users.some((u) => u.id === training.trainer_id) ? training.trainer_id : ''
+                          }
+                          onChange={(e) => handleReassignTrainer(training, e.target.value)}
+                          title="Whoever is selected here can run this session's attendance and edit its quiz"
+                          className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer max-w-[150px]"
+                        >
+                          {!users.some((u) => u.id === training.trainer_id) && (
+                            <option value="">
+                              {training.trainer_name || 'Unassigned'} (no account)
+                            </option>
+                          )}
+                          {users
+                            .filter((u) => u.role === 'trainer' || u.role === 'admin')
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.full_name || u.email}
+                              </option>
+                            ))}
+                        </select>
                       </td>
 
                       <td className="py-3 text-slate-500 dark:text-slate-400 text-[11px]">
@@ -958,9 +1000,15 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setAiModel(e.target.value)}
                 className="w-full sm:w-80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
               >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended - low latency)</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep document analysis)</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                <optgroup label="Anthropic Claude">
+                  <option value="claude-opus-5">Claude Opus 5 (Recommended)</option>
+                  <option value="claude-sonnet-5">Claude Sonnet 5 (Faster, lower cost)</option>
+                  <option value="claude-haiku-4-5">Claude Haiku 4.5 (Fastest, lowest cost)</option>
+                </optgroup>
+                <optgroup label="Google Gemini">
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                </optgroup>
               </select>
             </div>
 

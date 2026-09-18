@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { supabaseService } from '../lib/services/supabaseService';
+import { supabaseService, canManageTraining } from '../lib/services/supabaseService';
 import { GraduationCap, ArrowRight, Calendar, Clock, MapPin } from 'lucide-react';
 
 /**
@@ -11,7 +11,7 @@ import { GraduationCap, ArrowRight, Calendar, Clock, MapPin } from 'lucide-react
  * screen.
  */
 export function TrainingPicker({ title, description, hrefPrefix, icon }) {
-  const { navigate, showToast } = useApp();
+  const { navigate, showToast, currentUser } = useApp();
   const [trainings, setTrainings] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,6 +78,11 @@ export function TrainingPicker({ title, description, hrefPrefix, icon }) {
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                     {t.title}
                   </h3>
+                  {!canManageTraining(t, currentUser) && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                      View only · {t.trainer_name}
+                    </span>
+                  )}
                 </div>
                 <span className="text-indigo-500 shrink-0">{icon || <ArrowRight className="w-4 h-4" />}</span>
               </div>

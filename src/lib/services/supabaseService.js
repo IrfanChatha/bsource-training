@@ -11,7 +11,7 @@ const MATERIALS_BUCKET = 'training-materials';
 export const DEFAULT_SETTINGS = {
   id: 1,
   qr_rotation_seconds: 60,
-  ai_model: 'gemini-2.5-flash',
+  ai_model: 'claude-opus-5',
   passing_score: 70,
   default_question_count: 10,
   allow_quiz_retries_default: true,
@@ -24,14 +24,35 @@ export const DEFAULT_SETTINGS = {
  * fabricated object, so the UI reported success for rows the database had
  * rejected. Failures now reach the caller.
  */
+const PG_MESSAGES = {
+  // insufficient_privilege / RLS refusal
+  '42501': 'You do not have permission to do that.',
+  // unique_violation
+  '23505': 'That already exists.',
+  // foreign_key_violation
+  '23503': 'That refers to something which no longer exists.',
+  // not_null_violation
+  '23502': 'A required field was missing.',
+  // check_violation
+  '23514': 'That value is not allowed.',
+};
+
 function unwrap({ data, error }, action) {
   if (error) {
-    const err = new Error(`${action}: ${error.message}`);
+    const friendly = PG_MESSAGES[error.code];
+    const err = new Error(friendly ? `${action}: ${friendly}` : `${action}: ${error.message}`);
     err.code = error.code;
     err.details = error.details;
+    err.raw = error.message;
     throw err;
   }
   return data;
+}
+
+/** True when `user` may run sessions and edit quizzes for `training`. */
+export function canManageTraining(training, user) {
+  if (!training || !user) return false;
+  return user.role === 'admin' || training.trainer_id === user.id;
 }
 
 /**

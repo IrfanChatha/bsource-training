@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
 import { Html5Qrcode } from 'html5-qrcode';
+import { cameraUnavailableReason, describeCameraError, qrboxFor } from '@/lib/camera';
 import {
   QrCode,
   CheckCircle2,
@@ -114,6 +115,12 @@ export default function QRScannerPage() {
   }, []);
 
   const startCamera = async () => {
+    const blocked = cameraUnavailableReason();
+    if (blocked) {
+      setErrorMessage(blocked);
+      return;
+    }
+
     try {
       setErrorMessage(null);
       const html5QrCode = new Html5Qrcode('qr-reader');
@@ -121,7 +128,7 @@ export default function QRScannerPage() {
 
       await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { fps: 10, qrbox: qrboxFor },
         (decodedText) => {
           stopCamera();
 
@@ -151,9 +158,7 @@ export default function QRScannerPage() {
       console.warn('Camera start error:', err);
       scannerRef.current = null;
       setCameraActive(false);
-      setErrorMessage(
-        'Camera access is unavailable or was blocked. Enter the token shown under the QR code instead.'
-      );
+      setErrorMessage(describeCameraError(err));
     }
   };
 

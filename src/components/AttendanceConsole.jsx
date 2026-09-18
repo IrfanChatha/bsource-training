@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { supabaseService, DEFAULT_SETTINGS } from '../lib/services/supabaseService';
+import { supabaseService, DEFAULT_SETTINGS, canManageTraining } from '../lib/services/supabaseService';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   RotateCw,
@@ -24,7 +24,7 @@ import {
  * nothing.
  */
 export function AttendanceConsole({ trainingId }) {
-  const { showToast, navigate } = useApp();
+  const { showToast, navigate, currentUser } = useApp();
   const [training, setTraining] = useState(null);
   const [session, setSession] = useState(null);
   const [attendees, setAttendees] = useState([]);
@@ -36,6 +36,11 @@ export function AttendanceConsole({ trainingId }) {
 
   // Guards the interval against overlapping rotations.
   const rotatingRef = useRef(false);
+
+  // Running a session writes to attendance_sessions, which only the training's
+  // own trainer or an admin may do. Without this the screen offered a button
+  // whose only possible outcome was a policy rejection.
+  const canManage = canManageTraining(training, currentUser);
 
   const fetchLiveState = useCallback(async () => {
     if (!trainingId) return;
@@ -119,10 +124,10 @@ export function AttendanceConsole({ trainingId }) {
 
   // Mint the first token once the training has loaded and none is live.
   useEffect(() => {
-    if (loading || loadError || !training || session) return undefined;
+    if (loading || loadError || !training || session || !canManage) return undefined;
     const id = setTimeout(() => rotateToken(true), 0);
     return () => clearTimeout(id);
-  }, [loading, loadError, training, session, rotateToken]);
+  }, [loading, loadError, training, session, rotateToken, canManage]);
 
   // Countdown; rotation is triggered from the effect, never from inside a
   // state updater, so it cannot fire twice per tick.
@@ -135,10 +140,10 @@ export function AttendanceConsole({ trainingId }) {
   }, [session]);
 
   useEffect(() => {
-    if (!session || timeLeft !== 0 || rotatingRef.current) return undefined;
+    if (!session || timeLeft !== 0 || rotatingRef.current || !canManage) return undefined;
     const id = setTimeout(() => rotateToken(true), 0);
     return () => clearTimeout(id);
-  }, [timeLeft, session, rotateToken]);
+  }, [timeLeft, session, rotateToken, canManage]);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrPayload = session
@@ -206,6 +211,9 @@ export function AttendanceConsole({ trainingId }) {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               {training?.title}
             </h1>
+            {training?.trainer_name && (
+              <p className="text-[11px] text-slate-400">Trainer: {training.trainer_name}</p>
+            )}
           </div>
         </div>
 
@@ -219,7 +227,16 @@ export function AttendanceConsole({ trainingId }) {
         </div>
       </div>
 
-      {loadError && (
+      {!canManage && training && (
+        <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
+          <span className="font-bold">View only.</span>{' '}
+          {training.trainer_name || 'Another trainer'} runs this session, so only
+          they or an administrator can project its check-in code. You can still
+          watch the roster below.
+        </div>
+      )}
+
+      {loadError && canManage && (
         <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs font-semibold text-rose-700 dark:text-rose-300">
           {loadError}
         </div>
@@ -243,8 +260,10 @@ export function AttendanceConsole({ trainingId }) {
             {session ? (
               <QRCodeSVG value={qrPayload} size={230} level="H" marginSize={2} className="rounded-xl" />
             ) : (
-              <div className="w-56 h-56 flex items-center justify-center text-slate-400 text-xs px-6">
-                No attendance token is live. Use &ldquo;Issue New Token&rdquo; below.
+              <div className="w-56 h-56 flex items-center justify-center text-slate-400 text-xs px-6 text-center">
+                {canManage
+                  ? 'No attendance token is live. Use “Issue New Token” below.'
+                  : 'No check-in code is being projected for this session yet.'}
               </div>
             )}
             <div
@@ -268,18 +287,21 @@ export function AttendanceConsole({ trainingId }) {
               </button>
             </div>
 
-            <button
-              onClick={() => rotateToken(false)}
-              disabled={isRotating}
-              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              <RotateCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} />
-              <span>{session ? 'Force Rotate Token Now' : 'Issue New Token'}</span>
-            </button>
+            {canManage && (
+              <button
+                onClick={() => rotateToken(false)}
+                disabled={isRotating}
+                className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isRotating ? 'animate-spin' : ''}`} />
+                <span>{session ? 'Force Rotate Token Now' : 'Issue New Token'}</span>
+              </button>
+            )}
 
             <p className="text-[10px] text-slate-400">
-              The token regenerates every {rotationSeconds} seconds. Expired and mismatched tokens are
-              rejected when a trainee scans.
+              {canManage
+                ? `The token regenerates every ${rotationSeconds} seconds. Expired and mismatched tokens are rejected when a trainee scans.`
+                : 'Only the trainer running this session can project or rotate its code.'}
             </p>
           </div>
         </div>

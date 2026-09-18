@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { supabaseService, DEFAULT_SETTINGS } from '../lib/services/supabaseService';
+import { supabaseService, DEFAULT_SETTINGS, canManageTraining } from '../lib/services/supabaseService';
 import { STORAGE_KEYS, readStored } from '../lib/storage';
 import { prepareTextForAI } from '../lib/services/fileExtractor';
 import { Sparkles, Bot, Trash2, ArrowLeft, Send, Save, AlertTriangle } from 'lucide-react';
@@ -14,7 +14,7 @@ import { Sparkles, Bot, Trash2, ArrowLeft, Send, Save, AlertTriangle } from 'luc
  * text and answer key intact.
  */
 export function QuizStudio({ trainingId }) {
-  const { showToast, navigate } = useApp();
+  const { showToast, navigate, currentUser } = useApp();
   const [training, setTraining] = useState(null);
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +101,6 @@ export function QuizStudio({ trainingId }) {
           materialText: materialText.trim(),
           numQuestions: settings.default_question_count || 10,
           difficulty,
-          provider: 'gemini',
           model: settings.ai_model,
         }),
       });
@@ -209,6 +208,8 @@ export function QuizStudio({ trainingId }) {
   // header used to show the target even when a shorter quiz was loaded.
   const targetCount = settings.default_question_count || 10;
   const actualCount = questions.length;
+  // Saving writes to quizzes/questions, which is owner-or-admin only.
+  const canManage = canManageTraining(training, currentUser);
 
   return (
     <div className="space-y-6">
@@ -237,14 +238,17 @@ export function QuizStudio({ trainingId }) {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               AI Quiz Studio
             </h1>
-            <p className="text-[11px] text-slate-400">{training?.title}</p>
+            <p className="text-[11px] text-slate-400">
+              {training?.title}
+              {training?.trainer_name ? ` · ${training.trainer_name}` : ''}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleSaveQuiz(false)}
-            disabled={isSaving || questions.length === 0}
+            disabled={isSaving || questions.length === 0 || !canManage}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold disabled:opacity-50 cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" />
@@ -252,7 +256,7 @@ export function QuizStudio({ trainingId }) {
           </button>
           <button
             onClick={() => handleSaveQuiz(true)}
-            disabled={isSaving || questions.length === 0}
+            disabled={isSaving || questions.length === 0 || !canManage}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
           >
             <Send className="w-3.5 h-3.5" />
@@ -260,6 +264,14 @@ export function QuizStudio({ trainingId }) {
           </button>
         </div>
       </div>
+
+      {!canManage && training && (
+        <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
+          <span className="font-bold">View only.</span>{' '}
+          {training.trainer_name || 'Another trainer'} owns this training, so only
+          they or an administrator can change its assessment.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-5 space-y-4">
@@ -271,7 +283,7 @@ export function QuizStudio({ trainingId }) {
 
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
               <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                Engine: Google Gemini
+                Engine: {String(settings.ai_model).startsWith('claude') ? 'Anthropic Claude' : 'Google Gemini'}
               </p>
               <p className="text-[10px] text-slate-400 font-mono">{settings.ai_model}</p>
             </div>
@@ -314,7 +326,7 @@ export function QuizStudio({ trainingId }) {
 
             <button
               onClick={handleGenerateAIQuiz}
-              disabled={isGenerating || !materialText.trim()}
+              disabled={isGenerating || !materialText.trim() || !canManage}
               className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Sparkles className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />

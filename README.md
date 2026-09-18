@@ -64,9 +64,15 @@ and an admin governance console. Next.js App Router + Supabase.
    demo trainings to you and delete the seeded demo profiles. The block refuses
    to run if the account does not exist or has never signed in.
 
-7. **Optional — AI quiz generation.** Set `GEMINI_API_KEY`. Without it
-   `/api/quiz/generate` returns template questions and says so in its response,
-   rather than presenting them as AI output.
+7. **Optional — AI quiz generation.** Set `ANTHROPIC_API_KEY` (or
+   `GEMINI_API_KEY`). The provider is chosen from the model selected in
+   **Admin → System Policies**: a `claude-*` model calls Anthropic, a `gemini-*`
+   model calls Google. The default is `claude-opus-5`.
+
+   Both keys are read server-side in the route handler only and never reach the
+   browser. Without the relevant key, `/api/quiz/generate` returns template
+   questions and says so in its `warning`, rather than presenting them as AI
+   output.
 
 ## Development
 
@@ -86,6 +92,7 @@ npm run lint
 | `src/lib/services/fileExtractor.js` | PDF / DOCX / PPTX / TXT text extraction |
 | `src/app/api/attendance/mark` | Validates a QR token against the live session |
 | `src/app/api/quiz/submit` | Grades an attempt against the answer key |
+| `src/app/api/quiz/generate` | Writes questions with Claude (or Gemini) |
 | `src/app/auth/callback` | Exchanges an email-confirmation code for a session |
 | `src/lib/auth/site-url.js` | Resolves the public origin for redirect links |
 
