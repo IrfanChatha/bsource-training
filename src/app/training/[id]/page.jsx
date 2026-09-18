@@ -1,8 +1,9 @@
 "use client";
-import React, { useState, useEffect, useRef, use } from 'react';
+import React, { useCallback, useState, useEffect, useRef, use } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
 import { STORAGE_KEYS, writeStored } from '@/lib/storage';
+import { SUPPORTED_EXTENSIONS } from '@/lib/services/fileExtractor';
 import {
   UploadCloud,
   FileText,
@@ -19,7 +20,7 @@ import {
 
 export default function TrainingDetailsPage({ params }) {
   const unwrappedParams = params ? (typeof params.then === 'function' ? use(params) : params) : {};
-  const trainingId = unwrappedParams.id || 'training-sec-101';
+  const trainingId = unwrappedParams.id || '';
   const { showToast, navigate } = useApp();
   const [training, setTraining] = useState(null);
   const [materials, setMaterials] = useState([]);
@@ -32,48 +33,56 @@ export default function TrainingDetailsPage({ params }) {
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const fileInputRef = useRef(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const t = await supabaseService.getTrainingById(trainingId);
-      if (t) setTraining(t);
-      const mats = await supabaseService.getMaterials(trainingId);
+      const [t, mats] = await Promise.all([
+        supabaseService.getTrainingById(trainingId),
+        supabaseService.getMaterials(trainingId),
+      ]);
+      setTraining(t);
       setMaterials(mats || []);
-      if (mats && mats.length > 0 && !selectedMaterial) {
-        setSelectedMaterial(mats[0]);
-      }
-    } catch {
-      showToast('Error loading training details', 'error');
+      // Keep whatever the user has open; otherwise show the newest upload.
+      setSelectedMaterial((prev) => prev || mats?.[0] || null);
+    } catch (e) {
+      showToast(e?.message || 'Error loading training details', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [trainingId, showToast]);
 
   useEffect(() => {
-    loadData();
-  }, [trainingId]);
+    const raf = requestAnimationFrame(() => loadData());
+    return () => cancelAnimationFrame(raf);
+  }, [loadData]);
 
   const handleFileUpload = async (file) => {
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'pptx', 'docx', 'txt'].includes(ext || '')) {
-      showToast('Unsupported file format. Please upload PDF, PPTX, DOCX, or TXT.', 'error');
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
+      showToast(
+        `Unsupported file format ".${ext}". Upload one of: ${SUPPORTED_EXTENSIONS.join(', ')}.`,
+        'error'
+      );
       return;
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
-    setUploadStatus(`Preparing to extract ${file.name}...`);
+    setUploadProgress(5);
+    setUploadStatus(`Preparing ${file.name}...`);
 
     try {
       const uploaded = await supabaseService.uploadMaterial(trainingId, file, (percent, status) => {
         setUploadProgress(percent);
         setUploadStatus(status);
       });
-      showToast(`Extracted ${uploaded.extracted_text ? uploaded.extracted_text.split(/\s+/).length : 0} words from ${file.name}`, 'success');
+      showToast(
+        `Extracted ${uploaded.wordCount ?? 0} words from ${file.name}.`,
+        'success'
+      );
       await loadData();
       setSelectedMaterial(uploaded);
     } catch (err) {
-      showToast(err?.message || 'Error uploading file', 'error');
+      showToast(err?.message || `Could not ingest ${file.name}.`, 'error');
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -120,7 +129,7 @@ export default function TrainingDetailsPage({ params }) {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/trainer/attendance')}
+            onClick={() => navigate(`/trainer/attendance/${trainingId}`)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 text-xs font-semibold transition-colors cursor-pointer"
           >
             <QrCode className="w-3.5 h-3.5" />
@@ -128,7 +137,7 @@ export default function TrainingDetailsPage({ params }) {
           </button>
 
           <button
-            onClick={() => navigate('/trainer/quiz')}
+            onClick={() => navigate(`/trainer/quiz/${trainingId}`)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
             <FileQuestion className="w-3.5 h-3.5" />
@@ -298,7 +307,7 @@ If an enterprise endpoint is lost, stolen, or exhibits unauthorized activity, th
                     if (typeof window !== 'undefined') {
                       writeStored(STORAGE_KEYS.activeMaterialText, selectedMaterial.extracted_text);
                     }
-                    navigate('/trainer/quiz');
+                    navigate(`/trainer/quiz/${trainingId}`);
                   }}
                   className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
                 >

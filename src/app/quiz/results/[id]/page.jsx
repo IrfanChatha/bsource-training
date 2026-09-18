@@ -17,50 +17,57 @@ import {
 
 export default function QuizResultsPage({ params }) {
   const unwrappedParams = params ? (typeof params.then === 'function' ? use(params) : params) : {};
-  const attemptId = unwrappedParams.id || 'att-demo-01';
+  const attemptId = unwrappedParams.id || '';
   const { navigate, showToast } = useApp();
   const [attempt, setAttempt] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    const loadResults = async () => {
-      setLoading(true);
+    let active = true;
+    (async () => {
       try {
         const res = await supabaseService.getAttemptById(attemptId);
-        if (res) {
-          setAttempt(res.attempt);
-          setAnswers(res.answers || []);
-          setQuiz(res.quiz);
+        if (!active) return;
+        if (!res) {
+          setLoadError('That attempt could not be found.');
+          return;
+        }
+        setAttempt(res.attempt);
+        setAnswers(res.answers || []);
+        setQuiz(res.quiz);
 
-          if (res.attempt.percentage >= 70) {
-            try {
-              confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-              });
-            } catch (e) {}
+        const threshold = res.quiz?.passing_score ?? 70;
+        if (Number(res.attempt.percentage) >= threshold) {
+          try {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          } catch {
+            // Confetti is decorative; a failure here must not break the page.
           }
         }
-      } catch {
-        showToast('Error loading quiz attempt', 'error');
+      } catch (e) {
+        if (active) setLoadError(e?.message || 'Error loading quiz attempt');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
+    })();
+    return () => {
+      active = false;
     };
-    loadResults();
   }, [attemptId]);
 
   if (loading) {
     return <div className="p-12 text-center text-slate-400">Loading assessment results...</div>;
   }
 
-  if (!attempt || !quiz) {
+  if (loadError || !attempt || !quiz) {
     return (
       <div className="p-12 text-center space-y-3">
-        <p className="text-sm font-semibold text-rose-500">Attempt record not found.</p>
+        <p className="text-sm font-semibold text-rose-500">
+          {loadError || 'Attempt record not found.'}
+        </p>
         <button
           onClick={() => navigate('/trainee/dashboard')}
           className="px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 text-white cursor-pointer"
@@ -71,7 +78,8 @@ export default function QuizResultsPage({ params }) {
     );
   }
 
-  const isPassed = attempt.percentage >= 70;
+  const passingScore = quiz.passing_score ?? 70;
+  const isPassed = Number(attempt.percentage) >= passingScore;
   const questionsMap = {};
   quiz.questions?.forEach((q) => {
     questionsMap[q.id] = q;
@@ -118,12 +126,12 @@ export default function QuizResultsPage({ params }) {
             ) : (
               <>
                 <AlertTriangle className="w-4 h-4" />
-                <span>Needs Improvement (Passing Grade: 70%)</span>
+                <span>Needs Improvement (Passing Grade: {passingScore}%)</span>
               </>
             )}
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white pt-2">
-            {attempt.score} <span className="text-xl text-slate-400">/ {attempt.total_questions || 10}</span>
+            {attempt.score} <span className="text-xl text-slate-400">/ {attempt.total_questions}</span>
           </h1>
           <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
             Overall Score: {attempt.percentage}%
@@ -173,7 +181,7 @@ export default function QuizResultsPage({ params }) {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                        Question {idx + 1} of {attempt.total_questions || 10}
+                        Question {idx + 1} of {attempt.total_questions}
                       </span>
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${

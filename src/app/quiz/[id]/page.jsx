@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, use } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
 import {
@@ -10,107 +10,109 @@ import {
 } from 'lucide-react';
 
 export default function TraineeQuizPage({ params }) {
-  const unwrappedParams = params ? (typeof params.then === 'function' ? use(params) : params) : {};
-  const quizId = unwrappedParams.id || 'quiz-sec-101';
-  const { currentUser, showToast, navigate } = useApp();
+  const unwrappedParams = params ? (typeof params.then === 'function' ? React.use(params) : params) : {};
+  const quizId = unwrappedParams.id || '';
+  const { showToast, navigate } = useApp();
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [currentIdx, setCurrentIdx] = useState(0);
 
   const [selectedAnswers, setSelectedAnswers] = useState({});
-  const [timeRemaining, setTimeRemaining] = useState(600);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [startedAt] = useState(() => new Date().toISOString());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
-    const loadQuiz = async () => {
-      setLoading(true);
+    let active = true;
+    (async () => {
       try {
         const q = await supabaseService.getQuizById(quizId);
-        if (q) {
-          setQuiz(q);
-        } else {
-          // Fallback check
-          const trainings = await supabaseService.getTrainings();
-          if (trainings && trainings.length > 0) {
-            const fallbackQuiz = await supabaseService.getQuiz(trainings[0].id);
-            if (fallbackQuiz) setQuiz(fallbackQuiz);
-          }
+        if (!active) return;
+        if (!q) {
+          setLoadError('That assessment could not be found.');
+          return;
         }
-      } catch {
-        showToast('Error loading quiz', 'error');
+        setQuiz(q);
+        setTimeRemaining((q.time_limit_minutes || 10) * 60);
+      } catch (e) {
+        if (active) setLoadError(e?.message || 'Error loading quiz');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
+    })();
+    return () => {
+      active = false;
     };
-    loadQuiz();
   }, [quizId]);
 
+  const handleSelectOption = (optIdx) => {
+    if (!quiz?.questions) return;
+    const currentQ = quiz.questions[currentIdx];
+    setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: optIdx }));
+  };
+
+  const handleSubmitQuiz = useCallback(
+    async (autoSubmit = false) => {
+      if (!quiz?.questions || isSubmitting) return;
+      setIsSubmitting(true);
+
+      try {
+        // Only the chosen option is sent; the score is computed server-side
+        // against the answer key in the database.
+        const answersArray = quiz.questions.map((q) => ({
+          question_id: q.id,
+          selected_option: selectedAnswers[q.id] ?? -1,
+        }));
+
+        const { attempt } = await supabaseService.submitQuizAttempt({
+          quiz_id: quiz.id,
+          answers: answersArray,
+          started_at: startedAt,
+        });
+
+        showToast(
+          autoSubmit
+            ? `Time expired. Submitted — you scored ${attempt.score}/${attempt.total_questions}.`
+            : `Assessment submitted. You scored ${attempt.score}/${attempt.total_questions}.`,
+          'success'
+        );
+
+        navigate(`/quiz/results/${attempt.id}`);
+      } catch (err) {
+        showToast(err?.message || 'Failed to submit the assessment', 'error');
+        setIsSubmitting(false);
+      }
+    },
+    [quiz, selectedAnswers, isSubmitting, startedAt, showToast, navigate]
+  );
+
+  // Tick the clock. Auto-submission is triggered by the effect below rather
+  // than from inside the state updater, so it can only fire once.
   useEffect(() => {
-    if (!quiz) return;
+    if (!quiz || timeRemaining === null || timeRemaining <= 0) return undefined;
     const interval = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleSubmitQuiz(true);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeRemaining((prev) => (prev === null || prev <= 0 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, [quiz]);
+  }, [quiz, timeRemaining]);
 
-  const handleSelectOption = (optIdx) => {
-    if (!quiz || !quiz.questions) return;
-    const currentQ = quiz.questions[currentIdx];
-    setSelectedAnswers((prev) => ({
-      ...prev,
-      [currentQ.id]: optIdx,
-    }));
-  };
-
-  const handleSubmitQuiz = async (autoSubmit = false) => {
-    if (!quiz || !quiz.questions) return;
-    setIsSubmitting(true);
-
-    try {
-      const answersArray = quiz.questions.map((q) => ({
-        question_id: q.id,
-        selected_option: selectedAnswers[q.id] ?? -1,
-      }));
-
-      const attempt = await supabaseService.submitQuiz(
-        quiz.id,
-        quiz.training_id,
-        currentUser?.id || 'trainee-01',
-        currentUser?.name || currentUser?.full_name || 'Trainee',
-        answersArray
-      );
-
-      showToast(
-        autoSubmit
-          ? 'Time expired! Quiz submitted automatically.'
-          : `Assessment submitted! You scored ${attempt.score}/${attempt.total_questions}`,
-        'success'
-      );
-
-      navigate(`/quiz/results/${attempt.id}`);
-    } catch (err) {
-      showToast(err?.message || 'Failed to submit quiz', 'error');
-      setIsSubmitting(false);
-    }
-  };
+  useEffect(() => {
+    if (!quiz || timeRemaining !== 0 || isSubmitting) return undefined;
+    const id = setTimeout(() => handleSubmitQuiz(true), 0);
+    return () => clearTimeout(id);
+  }, [timeRemaining, quiz, isSubmitting, handleSubmitQuiz]);
 
   if (loading) {
     return <div className="p-12 text-center text-slate-400">Loading quiz questions...</div>;
   }
 
-  if (!quiz || !quiz.questions || quiz.questions.length === 0) {
+  if (loadError || !quiz || !quiz.questions || quiz.questions.length === 0) {
     return (
       <div className="p-12 text-center space-y-3">
         <p className="text-sm font-semibold text-rose-500">
-          This quiz does not have any active questions or has not been published yet.
+          {loadError || 'This quiz does not have any active questions, or has not been published yet.'}
         </p>
         <button
           onClick={() => navigate('/trainee/dashboard')}
@@ -124,8 +126,9 @@ export default function TraineeQuizPage({ params }) {
 
   const currentQ = quiz.questions[currentIdx];
   const answeredCount = Object.keys(selectedAnswers).length;
-  const minutes = Math.floor(timeRemaining / 60);
-  const seconds = timeRemaining % 60;
+  const safeRemaining = timeRemaining ?? 0;
+  const minutes = Math.floor(safeRemaining / 60);
+  const seconds = safeRemaining % 60;
 
   return (
     <div className="max-w-3xl mx-auto py-4 space-y-6">
@@ -147,7 +150,7 @@ export default function TraineeQuizPage({ params }) {
 
         {/* Countdown Timer */}
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-sm font-bold shrink-0 self-start sm:self-auto">
-          <Clock className={`w-4 h-4 ${timeRemaining < 120 ? 'text-rose-500 animate-pulse' : 'text-indigo-500'}`} />
+          <Clock className={`w-4 h-4 ${safeRemaining < 120 ? 'text-rose-500 animate-pulse' : 'text-indigo-500'}`} />
           <span>
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </span>

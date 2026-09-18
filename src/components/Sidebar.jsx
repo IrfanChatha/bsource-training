@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ isOpen, onClose }) {
-  const { pathname, navigate, currentUser, showToast, switchRole } = useApp();
+  const { pathname, navigate, currentUser, showToast, switchRole, switchingRole } = useApp();
   const current = pathname || '/';
 
   const isCurrent = (path) => {
@@ -63,13 +63,15 @@ export function Sidebar({ isOpen, onClose }) {
     try {
       await supabaseService.logout();
       showToast('Successfully signed out.', 'info');
-      navigate('/login');
     } catch (e) {
+      showToast(e?.message || 'Signed out locally, but the server call failed.', 'warning');
+    } finally {
       navigate('/login');
     }
   };
 
-  const userInitial = (currentUser?.name || currentUser?.full_name || 'U').charAt(0).toUpperCase();
+  const userInitial = (currentUser?.full_name || currentUser?.name || 'U').charAt(0).toUpperCase();
+  const canSwitchWorkspace = currentUser?.role === 'trainer' || currentUser?.role === 'trainee';
 
   return (
     <>
@@ -95,7 +97,7 @@ export function Sidebar({ isOpen, onClose }) {
               </div>
               <div className="overflow-hidden">
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" suppressHydrationWarning>
-                  {currentUser?.name || currentUser?.full_name || 'User'}
+                  {currentUser?.full_name || currentUser?.name || 'User'}
                 </p>
                 <p className="text-[11px] text-slate-400 capitalize flex items-center gap-1.5" suppressHydrationWarning>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
@@ -106,6 +108,7 @@ export function Sidebar({ isOpen, onClose }) {
           </div>
 
           {/* Quick Workspace Switcher Widget */}
+          {canSwitchWorkspace && (
           <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-slate-50 to-slate-100 dark:from-slate-800/80 dark:via-slate-900/60 dark:to-slate-800/40 border border-indigo-100 dark:border-slate-700/70 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -116,13 +119,14 @@ export function Sidebar({ isOpen, onClose }) {
                   ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
                   : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
               }`}>
-                {currentUser?.role === 'trainer' ? 'Trainer' : currentUser?.role === 'trainee' ? 'Trainee' : 'Admin'}
+                {currentUser?.role || 'User'}
               </span>
             </div>
 
             {currentUser?.role === 'trainer' ? (
               <button
                 type="button"
+                disabled={switchingRole}
                 onClick={() => {
                   switchRole('trainee');
                   if (onClose) onClose();
@@ -135,6 +139,7 @@ export function Sidebar({ isOpen, onClose }) {
             ) : (
               <button
                 type="button"
+                disabled={switchingRole}
                 onClick={() => {
                   switchRole('trainer');
                   if (onClose) onClose();
@@ -146,6 +151,7 @@ export function Sidebar({ isOpen, onClose }) {
               </button>
             )}
           </div>
+          )}
 
           {/* Role specific navigation */}
           {currentUser?.role === 'trainer' && (
@@ -187,6 +193,9 @@ export function Sidebar({ isOpen, onClose }) {
                 Administration
               </div>
               {navItem('Admin Dashboard', '/admin/dashboard', <Shield className="w-4 h-4 text-purple-500" />)}
+              {navItem('Training Sessions', '/trainer/trainings', <GraduationCap className="w-4 h-4" />)}
+              {navItem('Live QR Attendance', '/trainer/attendance', <QrCode className="w-4 h-4" />)}
+              {navItem('AI Quiz Builder', '/trainer/quiz', <FileQuestion className="w-4 h-4" />)}
             </div>
           )}
         </div>

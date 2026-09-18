@@ -7,19 +7,24 @@
 -- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Drop existing tables if re-running script cleanly
-DROP TABLE IF EXISTS public.quiz_answers CASCADE;
-DROP TABLE IF EXISTS public.quiz_attempts CASCADE;
-DROP TABLE IF EXISTS public.questions CASCADE;
-DROP TABLE IF EXISTS public.quizzes CASCADE;
-DROP TABLE IF EXISTS public.attendance CASCADE;
-DROP TABLE IF EXISTS public.attendance_sessions CASCADE;
-DROP TABLE IF EXISTS public.training_materials CASCADE;
-DROP TABLE IF EXISTS public.trainings CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
+-- 2. DESTRUCTIVE RESET - commented out on purpose.
+--
+-- These statements used to run unconditionally, so re-running this file wiped
+-- every profile, training, attendance record and quiz attempt in the project.
+-- Uncomment them only when you intend to rebuild the database from scratch.
+--
+-- DROP TABLE IF EXISTS public.quiz_answers CASCADE;
+-- DROP TABLE IF EXISTS public.quiz_attempts CASCADE;
+-- DROP TABLE IF EXISTS public.questions CASCADE;
+-- DROP TABLE IF EXISTS public.quizzes CASCADE;
+-- DROP TABLE IF EXISTS public.attendance CASCADE;
+-- DROP TABLE IF EXISTS public.attendance_sessions CASCADE;
+-- DROP TABLE IF EXISTS public.training_materials CASCADE;
+-- DROP TABLE IF EXISTS public.trainings CASCADE;
+-- DROP TABLE IF EXISTS public.profiles CASCADE;
 
 -- 3. Profiles Table (Linked to Supabase Auth)
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
   full_name TEXT NOT NULL,
@@ -31,7 +36,7 @@ CREATE TABLE public.profiles (
 );
 
 -- 4. Trainings Table
-CREATE TABLE public.trainings (
+CREATE TABLE IF NOT EXISTS public.trainings (
   id TEXT PRIMARY KEY DEFAULT ('trn-' || substr(md5(random()::text), 1, 8)),
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
@@ -49,7 +54,7 @@ CREATE TABLE public.trainings (
 );
 
 -- 5. Training Materials Table
-CREATE TABLE public.training_materials (
+CREATE TABLE IF NOT EXISTS public.training_materials (
   id TEXT PRIMARY KEY DEFAULT ('mat-' || substr(md5(random()::text), 1, 8)),
   training_id TEXT NOT NULL REFERENCES public.trainings(id) ON DELETE CASCADE,
   file_name TEXT NOT NULL,
@@ -62,7 +67,7 @@ CREATE TABLE public.training_materials (
 );
 
 -- 6. Attendance Sessions Table (Rotating QR Codes)
-CREATE TABLE public.attendance_sessions (
+CREATE TABLE IF NOT EXISTS public.attendance_sessions (
   id TEXT PRIMARY KEY DEFAULT ('sess-' || substr(md5(random()::text), 1, 8)),
   training_id TEXT NOT NULL REFERENCES public.trainings(id) ON DELETE CASCADE,
   current_qr_token TEXT NOT NULL,
@@ -72,7 +77,7 @@ CREATE TABLE public.attendance_sessions (
 );
 
 -- 7. Attendance Records Table
-CREATE TABLE public.attendance (
+CREATE TABLE IF NOT EXISTS public.attendance (
   id TEXT PRIMARY KEY DEFAULT ('att-' || substr(md5(random()::text), 1, 8)),
   session_id TEXT REFERENCES public.attendance_sessions(id) ON DELETE SET NULL,
   training_id TEXT NOT NULL REFERENCES public.trainings(id) ON DELETE CASCADE,
@@ -85,7 +90,7 @@ CREATE TABLE public.attendance (
 );
 
 -- 8. Quizzes Table
-CREATE TABLE public.quizzes (
+CREATE TABLE IF NOT EXISTS public.quizzes (
   id TEXT PRIMARY KEY DEFAULT ('quiz-' || substr(md5(random()::text), 1, 8)),
   training_id TEXT NOT NULL REFERENCES public.trainings(id) ON DELETE CASCADE UNIQUE,
   title TEXT NOT NULL DEFAULT 'Training Assessment Quiz',
@@ -101,7 +106,7 @@ CREATE TABLE public.quizzes (
 );
 
 -- 9. Questions Table
-CREATE TABLE public.questions (
+CREATE TABLE IF NOT EXISTS public.questions (
   id TEXT PRIMARY KEY DEFAULT ('q-' || substr(md5(random()::text), 1, 8)),
   quiz_id TEXT NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
   question_order INTEGER NOT NULL DEFAULT 1,
@@ -113,7 +118,7 @@ CREATE TABLE public.questions (
 );
 
 -- 10. Quiz Attempts Table
-CREATE TABLE public.quiz_attempts (
+CREATE TABLE IF NOT EXISTS public.quiz_attempts (
   id TEXT PRIMARY KEY DEFAULT ('att-sub-' || substr(md5(random()::text), 1, 8)),
   quiz_id TEXT NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
   training_id TEXT NOT NULL REFERENCES public.trainings(id) ON DELETE CASCADE,
@@ -138,14 +143,14 @@ ALTER TABLE public.quizzes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quiz_attempts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all on profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on trainings" ON public.trainings FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on training_materials" ON public.training_materials FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on attendance_sessions" ON public.attendance_sessions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on quizzes" ON public.quizzes FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on questions" ON public.questions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all on quiz_attempts" ON public.quiz_attempts FOR ALL USING (true) WITH CHECK (true);
+-- Access policies are NOT defined here. Run supabase/migrations/0001_security_and_settings.sql
+-- immediately after this file: it creates the role-aware policies, the settings
+-- table, the attendance-token guard and the server-side quiz grader.
+--
+-- Until that migration runs, RLS is enabled with no policies, which denies all
+-- access rather than allowing it. That is deliberate: the previous
+-- "FOR ALL USING (true) WITH CHECK (true)" policies let anyone holding the
+-- publishable key read and delete every row, including all user profiles.
 
 -- 12. Realtime replication setup
 ALTER PUBLICATION supabase_realtime ADD TABLE public.trainings;

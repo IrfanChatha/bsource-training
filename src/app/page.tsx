@@ -112,20 +112,32 @@ const METRICS = [
   { value: "Enterprise", label: "Grade security" },
 ] as const;
 
+/**
+ * Footer links previously rendered as `#${slugify(label)}`, which produced
+ * fifteen anchors pointing at sections that do not exist. Each entry now names
+ * its own destination, and only real destinations are listed.
+ */
 const FOOTER_COLUMNS = [
   {
     title: "Product",
-    links: ["Features", "Integrations", "Security", "Changelog"],
+    links: [
+      { label: "Features", href: "#features" },
+      { label: "How it works", href: "#workflow" },
+      { label: "Pricing", href: "#pricing" },
+    ],
   },
   {
-    title: "Resources",
-    links: ["Help center", "API docs", "Guides", "Community"],
+    title: "Enterprise",
+    links: [{ label: "Security & governance", href: "#enterprise" }],
   },
-  { title: "Company", links: ["About", "Careers", "Partners", "Contact"] },
-  { title: "Legal", links: ["Privacy", "Terms", "Cookies", "Compliance"] },
+  {
+    title: "Get started",
+    links: [
+      { label: "Create an account", href: "/signup" },
+      { label: "Sign in", href: "/login" },
+    ],
+  },
 ] as const;
-
-const slugify = (value: string) => value.toLowerCase().replace(/\s+/g, "-");
 
 /* -------------------------------------------------------------------------- */
 /*  Shared pieces                                                             */
@@ -637,7 +649,7 @@ export default function HomePage() {
       {/* ----------------------------------------------------------- Footer */}
       <footer className="border-t border-border py-14">
         <div className="mx-auto max-w-7xl px-5">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[2fr_1fr_1fr_1fr]">
             <div className="col-span-2 lg:col-span-1">
               <Brand />
               <p className="mt-4 max-w-xs text-sm text-muted-foreground">
@@ -653,12 +665,12 @@ export default function HomePage() {
                 </h3>
                 <ul className="mt-4 space-y-2.5">
                   {column.links.map((link) => (
-                    <li key={link}>
+                    <li key={link.href}>
                       <a
-                        href={`#${slugify(link)}`}
+                        href={link.href}
                         className="text-xs text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        {link}
+                        {link.label}
                       </a>
                     </li>
                   ))}

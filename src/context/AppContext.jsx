@@ -1,118 +1,145 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabaseService } from '../lib/services/supabaseService';
 import { STORAGE_KEYS, readStored, writeStored } from '../lib/storage';
+import { SELF_ASSIGNABLE_ROLES, canAccess, homeRouteFor, isPublicRoute } from '../lib/auth/access';
 
 const AppContext = createContext(null);
-
-const DEFAULT_USER = {
-  id: 'usr_trainer_01',
-  name: 'Sarah Jenkins',
-  full_name: 'Sarah Jenkins',
-  email: 'sarah.j@enterprise.internal',
-  role: 'trainer',
-  department: 'Global Security & Operations',
-  avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'
-};
 
 export function AppProvider({ children }) {
   const router = useRouter();
   const pathname = usePathname() || '/';
 
-  // Consistent initial state for SSR
-  const [currentUser, setCurrentUser] = useState(DEFAULT_USER);
+  // There is deliberately no placeholder user. Until the Supabase session has
+  // been read, `currentUser` is null and `authReady` is false, so screens show
+  // a loading state instead of somebody else's identity.
+  const [currentUser, setCurrentUserState] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window !== 'undefined') {
-      // Sync Theme
-      const savedTheme = readStored(STORAGE_KEYS.theme);
-      const isDark = savedTheme === 'dark';
-      setDarkMode(isDark);
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+  const navigate = useCallback(
+    (path) => {
+      if (router && typeof router.push === 'function') {
+        router.push(path);
+      } else if (typeof window !== 'undefined') {
+        window.location.href = path;
       }
+    },
+    [router]
+  );
 
-      // Sync User Profile
-      const savedUser = readStored(STORAGE_KEYS.user);
-      if (savedUser) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          if (parsed && parsed.role) {
-            setCurrentUser(parsed);
-          }
-        } catch (e) {}
-      }
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Theme is a purely local preference and can be applied immediately.
+  useEffect(() => {
+    const isDark = readStored(STORAGE_KEYS.theme) === 'dark';
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    const raf = requestAnimationFrame(() => setDarkMode(isDark));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Identity comes from the Supabase session, never from localStorage alone.
+  useEffect(() => {
+    let active = true;
+
+    supabaseService
+      .loadSessionProfile()
+      .then((profile) => {
+        if (!active) return;
+        setCurrentUserState(profile);
+      })
+      .catch(() => {
+        if (active) setCurrentUserState(null);
+      })
+      .finally(() => {
+        if (active) setAuthReady(true);
+      });
+
+    const unsubscribe = supabaseService.onAuthChange((profile) => {
+      if (!active) return;
+      setCurrentUserState(profile);
+      setAuthReady(true);
+    });
+
+    return () => {
+      active = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  // Secure-side companion to the proxy check: if the profile role loaded from
+  // the database does not permit this route, leave it.
+  useEffect(() => {
+    if (!authReady) return;
+    if (isPublicRoute(pathname)) return;
+    if (!currentUser) {
+      navigate(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
     }
+    if (!canAccess(pathname, currentUser.role)) {
+      navigate(homeRouteFor(currentUser.role));
+    }
+  }, [authReady, currentUser, pathname, navigate]);
+
+  const setCurrentUser = useCallback((user) => {
+    setCurrentUserState(user);
+    supabaseService.setCurrentUser(user);
   }, []);
 
   const toggleDarkMode = (val) => {
     const nextVal = typeof val === 'boolean' ? val : !darkMode;
     setDarkMode(nextVal);
-    if (typeof window !== 'undefined') {
-      writeStored(STORAGE_KEYS.theme, nextVal ? 'dark' : 'light');
-      if (nextVal) {
-        document.documentElement.classList.add('dark');
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.setAttribute('data-theme', 'light');
-      }
-    }
+    writeStored(STORAGE_KEYS.theme, nextVal ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', nextVal);
+    document.documentElement.setAttribute('data-theme', nextVal ? 'dark' : 'light');
   };
 
-  const showToast = (message, type = 'info') => {
+  const showToast = useCallback((message, type = 'info') => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 6);
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
-  };
+  }, []);
+
+  /**
+   * Moves the signed-in user between the Trainer and Trainee workspaces.
+   *
+   * `admin` is not self-assignable: the `profiles_update_self` policy only
+   * permits trainer/trainee, so an attempt would be rejected by the database
+   * anyway. The service writes the profile and the JWT metadata together and
+   * reads the row back, so this either fully succeeds or reports why not.
+   */
+  const [switchingRole, setSwitchingRole] = useState(false);
 
   const switchRole = async (newRole, shouldNavigate = true) => {
-    if (!currentUser) return;
-    const updatedUser = {
-      ...currentUser,
-      role: newRole
-    };
-
-    setCurrentUser(updatedUser);
-    supabaseService.setCurrentUser(updatedUser);
-
-    // Persist to Supabase Database (profiles table)
-    if (updatedUser.id) {
-      try {
-        await supabaseService.updateUserProfile(updatedUser.id, { role: newRole });
-      } catch (e) {
-        console.warn('Could not sync role change to database:', e);
-      }
+    if (!currentUser || switchingRole) return;
+    if (!SELF_ASSIGNABLE_ROLES.includes(newRole)) {
+      showToast('Only an administrator can grant that role.', 'error');
+      return;
     }
+    if (currentUser.role === newRole) return;
 
-    const roleTitle = newRole === 'trainer' ? 'Trainer Hub' : newRole === 'trainee' ? 'Trainee Portal' : 'Admin';
-    showToast(`Switched active workspace to ${roleTitle}`, 'info');
+    setSwitchingRole(true);
+    try {
+      const profile = await supabaseService.setOwnRole(newRole);
+      setCurrentUserState(profile);
 
-    if (shouldNavigate) {
-      if (newRole === 'trainer') {
-        navigate('/trainer/trainings');
-      } else if (newRole === 'trainee') {
-        navigate('/trainee/dashboard');
-      } else if (newRole === 'admin') {
-        navigate('/admin/dashboard');
-      }
-    }
-  };
+      const roleTitle = newRole === 'trainer' ? 'Trainer Hub' : 'Trainee Portal';
+      showToast(`Switched active workspace to ${roleTitle}`, 'info');
 
-  const navigate = (path) => {
-    if (router && typeof router.push === 'function') {
-      router.push(path);
-    } else if (typeof window !== 'undefined') {
-      window.location.href = path;
+      if (shouldNavigate) navigate(homeRouteFor(newRole));
+    } catch (e) {
+      showToast(e?.message || 'Could not switch workspace. Please try again.', 'error');
+    } finally {
+      setSwitchingRole(false);
     }
   };
 
@@ -121,7 +148,9 @@ export function AppProvider({ children }) {
       value={{
         currentUser,
         setCurrentUser,
+        authReady,
         switchRole,
+        switchingRole,
         toasts,
         showToast,
         darkMode,

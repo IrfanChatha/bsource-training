@@ -1,22 +1,20 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { homeRouteFor } from '../lib/auth/access';
 import { supabaseService } from '../lib/services/supabaseService';
 import {
   Sparkles,
   Moon,
   Sun,
-  Shield,
   GraduationCap,
   UserCheck,
   LogOut,
-  ChevronDown,
-  User,
-  Building
+  ChevronDown
 } from 'lucide-react';
 
 export function Navbar({ onToggleSidebar, isPublicPage = false }) {
-  const { currentUser, darkMode, setDarkMode, navigate, showToast, switchRole } = useApp();
+  const { currentUser, darkMode, setDarkMode, navigate, showToast, switchRole, switchingRole } = useApp();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef(null);
 
@@ -32,17 +30,21 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
   }, []);
 
   const handleLogout = async () => {
+    setShowUserMenu(false);
     try {
       await supabaseService.logout();
-      setShowUserMenu(false);
       showToast('Successfully signed out.', 'info');
-      navigate('/login');
     } catch (e) {
+      showToast(e?.message || 'Signed out locally, but the server call failed.', 'warning');
+    } finally {
       navigate('/login');
     }
   };
 
-  const userInitial = (currentUser?.name || currentUser?.full_name || 'U').charAt(0).toUpperCase();
+  const userInitial = (currentUser?.full_name || currentUser?.name || 'U').charAt(0).toUpperCase();
+  // Admin is not self-assignable, so an admin who switched could not switch
+  // back. The workspace toggle is therefore only shown to trainers/trainees.
+  const canSwitchWorkspace = currentUser?.role === 'trainer' || currentUser?.role === 'trainee';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 sm:px-6 h-16 flex items-center justify-between transition-colors shadow-xs">
@@ -61,7 +63,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
         )}
 
         <div
-          onClick={() => navigate(isPublicPage ? '/' : currentUser?.role === 'trainer' ? '/trainer/trainings' : '/trainee/dashboard')}
+          onClick={() => navigate(isPublicPage ? '/' : homeRouteFor(currentUser?.role))}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-indigo-700 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
@@ -80,10 +82,11 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
       {/* Right Controls */}
       <div className="flex items-center gap-2.5 sm:gap-3">
         {/* Dynamic Workspace Mode Switcher (Visible on medium+ screens and in dropdown) */}
-        {!isPublicPage && currentUser && (
+        {!isPublicPage && canSwitchWorkspace && (
           <div className="hidden sm:flex items-center">
             {currentUser.role === 'trainer' ? (
               <button
+                disabled={switchingRole}
                 onClick={() => switchRole('trainee')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800 text-xs font-bold transition-all shadow-xs cursor-pointer"
                 title="Switch perspective to Trainee Portal (Attend sessions, take quizzes)"
@@ -93,6 +96,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
               </button>
             ) : (
               <button
+                disabled={switchingRole}
                 onClick={() => switchRole('trainer')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 text-xs font-bold transition-all shadow-xs cursor-pointer"
                 title="Switch perspective to Trainer Hub (Create courses, project QR, build AI quizzes)"
@@ -145,7 +149,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
               </div>
               <div className="hidden sm:flex flex-col text-left leading-tight">
                 <span className="truncate max-w-[120px] text-xs font-bold text-slate-900 dark:text-white" suppressHydrationWarning>
-                  {currentUser?.name || currentUser?.full_name || 'User'}
+                  {currentUser?.full_name || currentUser?.name || 'User'}
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium capitalize" suppressHydrationWarning>
                   {currentUser?.role || 'User'}
@@ -171,14 +175,15 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
                     </span>
                   </div>
                   <p className="text-xs font-bold text-slate-900 dark:text-white truncate" suppressHydrationWarning>
-                    {currentUser?.name || currentUser?.full_name || 'User'}
+                    {currentUser?.full_name || currentUser?.name || 'User'}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate" suppressHydrationWarning>
-                    {currentUser?.email || 'user@enterprise.internal'}
+                    {currentUser?.email || ''}
                   </p>
                 </div>
 
                 {/* Mode Switcher Inside Dropdown */}
+                {canSwitchWorkspace && (
                 <div className="space-y-1.5 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
                     Switch Workspace Mode
@@ -186,6 +191,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
+                      disabled={switchingRole}
                       onClick={() => {
                         switchRole('trainer');
                         setShowUserMenu(false);
@@ -201,6 +207,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
                     </button>
                     <button
                       type="button"
+                      disabled={switchingRole}
                       onClick={() => {
                         switchRole('trainee');
                         setShowUserMenu(false);
@@ -216,6 +223,7 @@ export function Navbar({ onToggleSidebar, isPublicPage = false }) {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Account Actions */}
                 <div className="pt-1">

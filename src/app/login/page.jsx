@@ -1,7 +1,9 @@
 "use client";
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
+import { homeRouteFor } from '@/lib/auth/access';
 import {
   Sparkles,
   Mail,
@@ -14,8 +16,9 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginForm() {
   const { setCurrentUser, showToast, navigate } = useApp();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -175,7 +178,7 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center pt-2 text-xs text-slate-500 dark:text-slate-400">
-          Don't have an enterprise account?{' '}
+          Don&rsquo;t have an enterprise account?{' '}
           <button
             onClick={() => navigate('/signup')}
             className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
@@ -185,5 +188,15 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense
+      fallback={<div className="p-12 text-center text-slate-400 text-sm">Loading sign in...</div>}
+    >
+      <LoginForm />
+    </React.Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
-import { supabaseService } from '@/lib/services/supabaseService';
+import { supabaseService, DEFAULT_SETTINGS } from '@/lib/services/supabaseService';
 import {
   Users,
   GraduationCap,
@@ -74,11 +74,30 @@ export default function AdminDashboardPage() {
   const [editDepartment, setEditDepartment] = useState('Engineering');
 
   // System Settings State
-  const [qrInterval, setQrInterval] = useState(60);
-  const [aiModel, setAiModel] = useState('gemini-1.5-flash');
-  const [passingScore, setPassingScore] = useState(70);
-  const [defaultQuizQuestions, setDefaultQuizQuestions] = useState(10);
-  const [allowRetriesDefault, setAllowRetriesDefault] = useState(true);
+  const [qrInterval, setQrInterval] = useState(DEFAULT_SETTINGS.qr_rotation_seconds);
+  const [aiModel, setAiModel] = useState(DEFAULT_SETTINGS.ai_model);
+  const [passingScore, setPassingScore] = useState(DEFAULT_SETTINGS.passing_score);
+  const [defaultQuizQuestions, setDefaultQuizQuestions] = useState(DEFAULT_SETTINGS.default_question_count);
+  const [allowRetriesDefault, setAllowRetriesDefault] = useState(DEFAULT_SETTINGS.allow_quiz_retries_default);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      await supabaseService.saveSettings({
+        qr_rotation_seconds: qrInterval,
+        ai_model: aiModel,
+        passing_score: passingScore,
+        default_question_count: defaultQuizQuestions,
+        allow_quiz_retries_default: allowRetriesDefault,
+      });
+      showToast('System policies saved.', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Failed to save system policies', 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const loadAdminData = async () => {
     try {
@@ -92,6 +111,13 @@ export default function AdminDashboardPage() {
       setTrainings(t || []);
       setAttendanceLogs(att || []);
       setQuizAttempts(attempts || []);
+
+      const settings = await supabaseService.getSettings().catch(() => DEFAULT_SETTINGS);
+      setQrInterval(settings.qr_rotation_seconds);
+      setAiModel(settings.ai_model);
+      setPassingScore(settings.passing_score);
+      setDefaultQuizQuestions(settings.default_question_count);
+      setAllowRetriesDefault(settings.allow_quiz_retries_default);
     } catch {
       showToast('Error loading administrative statistics', 'error');
     } finally {
@@ -101,11 +127,15 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    loadAdminData();
+    // Kick the first load off the effect body so it does not setState
+    // synchronously during the commit.
+    const raf = requestAnimationFrame(() => loadAdminData());
     const unsub = supabaseService.onRealtimeUpdate(() => loadAdminData());
     return () => {
+      cancelAnimationFrame(raf);
       if (typeof unsub === 'function') unsub();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
@@ -131,7 +161,10 @@ export default function AdminDashboardPage() {
         specialty: newUserSpecialty,
         cohort: newUserCohort
       });
-      showToast(`Provisioned account for ${newUserName}`, 'success');
+      showToast(
+        `Reserved a ${newUserRole} profile for ${newUserEmail}. They can now sign up with that address.`,
+        'success'
+      );
       setShowAddUserModal(false);
       setNewUserName('');
       setNewUserEmail('');
@@ -166,10 +199,13 @@ export default function AdminDashboardPage() {
   };
 
   const handleDeleteUser = async (userId, userName) => {
-    if (confirm(`Are you sure you want to remove user "${userName}" from the system?`)) {
+    if (!confirm(`Are you sure you want to remove user "${userName}" from the system?`)) return;
+    try {
       await supabaseService.deleteUser(userId);
       showToast(`User ${userName} removed.`, 'info');
       await loadAdminData();
+    } catch (err) {
+      showToast(err?.message || 'Failed to remove user', 'error');
     }
   };
 
@@ -186,8 +222,7 @@ export default function AdminDashboardPage() {
   // Training Actions
   const handleTogglePublish = async (training) => {
     try {
-      await supabaseService.createTraining({
-        ...training,
+      await supabaseService.updateTraining(training.id, {
         is_published: !training.is_published
       });
       showToast(`Training ${!training.is_published ? 'published' : 'unpublished'}`, 'success');
@@ -199,10 +234,7 @@ export default function AdminDashboardPage() {
 
   const handleStatusChange = async (training, newStatus) => {
     try {
-      await supabaseService.createTraining({
-        ...training,
-        status: newStatus
-      });
+      await supabaseService.updateTraining(training.id, { status: newStatus });
       showToast(`Training status changed to ${newStatus}`, 'success');
       await loadAdminData();
     } catch (err) {
@@ -211,61 +243,65 @@ export default function AdminDashboardPage() {
   };
 
   const handleDeleteTraining = async (id, title) => {
-    if (confirm(`Delete training course "${title}"? This cannot be undone.`)) {
+    if (!confirm(`Delete training course "${title}"? This cannot be undone.`)) return;
+    try {
       await supabaseService.deleteTraining(id);
       showToast('Training session deleted', 'info');
       await loadAdminData();
+    } catch (err) {
+      showToast(err?.message || 'Failed to delete training', 'error');
     }
   };
 
-  // CSV Exporter
+  /**
+   * Quotes a value for CSV. The previous export pasted raw values into a
+   * `data:` URI and ran them through encodeURI, which leaves `#` untouched, so
+   * everything after the first `#` in any field was silently dropped.
+   */
+  const csvCell = (value) => {
+    const str = value === null || value === undefined ? '' : String(value);
+    return '"' + str.replace(/"/g, '""') + '"';
+  };
+
   const exportCSV = (type) => {
     let headers = [];
     let rows = [];
-    let filename = `bsource_${type}_${Date.now()}.csv`;
+    const filename = `bsource_${type}_${new Date().toISOString().slice(0, 10)}.csv`;
 
     if (type === 'attendance') {
       headers = ['Attendance ID', 'Training ID', 'Trainee ID', 'Trainee Name', 'Timestamp', 'Token Verified'];
-      rows = attendanceLogs.map(a => [
-        a.id,
-        a.training_id,
-        a.trainee_id,
-        `"${a.trainee_name || 'Participant'}"`,
-        a.marked_at,
-        a.token_used || '60s-dynamic-token'
+      rows = attendanceLogs.map((a) => [
+        a.id, a.training_id, a.trainee_id, a.trainee_name || 'Participant', a.marked_at, a.verified_by_token || '',
       ]);
     } else if (type === 'users') {
       headers = ['User ID', 'Full Name', 'Email', 'Role', 'Department', 'Created At'];
-      rows = users.map(u => [
-        u.id,
-        `"${u.full_name || u.name || ''}"`,
-        u.email,
-        u.role,
-        `"${u.department || 'General'}"`,
-        u.created_at || ''
+      rows = users.map((u) => [
+        u.id, u.full_name || u.name || '', u.email, u.role, u.department || '', u.created_at || '',
       ]);
     } else {
       headers = ['Training ID', 'Title', 'Trainer Name', 'Date', 'Time', 'Status', 'Published'];
-      rows = trainings.map(t => [
-        t.id,
-        `"${t.title}"`,
-        `"${t.trainer_name}"`,
-        t.date,
-        t.time,
-        t.status,
-        t.is_published ? 'Yes' : 'No'
+      rows = trainings.map((t) => [
+        t.id, t.title, t.trainer_name, t.date, t.time, t.status, t.is_published ? 'Yes' : 'No',
       ]);
     }
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    if (rows.length === 0) {
+      showToast(`There is no ${type} data to export yet.`, 'warning');
+      return;
+    }
+
+    // A leading BOM keeps Excel from mangling non-ASCII names.
+    const csv = '\uFEFF' + [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', filename);
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast(`Exported ${type} report to CSV`, 'success');
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${rows.length} ${type} rows to CSV`, 'success');
   };
 
   // Filtered Users
@@ -300,9 +336,10 @@ export default function AdminDashboardPage() {
   const completedSessions = trainings.filter((t) => t.status === 'completed').length;
   const totalCheckIns = attendanceLogs.length;
   const totalAttempts = quizAttempts.length;
+  // Shows a dash rather than a placeholder number when nobody has been graded.
   const avgScore = quizAttempts.length > 0
-    ? Math.round(quizAttempts.reduce((acc, a) => acc + (a.percentage || 0), 0) / quizAttempts.length)
-    : 85;
+    ? Math.round(quizAttempts.reduce((acc, a) => acc + (Number(a.percentage) || 0), 0) / quizAttempts.length)
+    : null;
 
   // Department Distribution
   const departmentCounts = users.reduce((acc, u) => {
@@ -426,7 +463,7 @@ export default function AdminDashboardPage() {
                 <span>Avg Quiz Pass Rate</span>
                 <Award className="w-4 h-4 text-amber-500" />
               </div>
-              <p className="text-3xl font-black text-slate-900 dark:text-white">{avgScore}%</p>
+              <p className="text-3xl font-black text-slate-900 dark:text-white">{avgScore === null ? '\u2014' : `${avgScore}%`}</p>
               <p className="text-[11px] text-slate-400 mt-1">
                 {totalAttempts} completed AI assessments
               </p>
@@ -921,8 +958,8 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setAiModel(e.target.value)}
                 className="w-full sm:w-80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
               >
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended - Ultra Low Latency)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Document Analysis)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended - low latency)</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep document analysis)</option>
                 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
               </select>
             </div>
@@ -978,10 +1015,11 @@ export default function AdminDashboardPage() {
             </div>
 
             <button
-              onClick={() => showToast('System policies & AI parameters saved successfully.', 'success')}
-              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 cursor-pointer transition-all"
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer transition-all"
             >
-              Save Configuration
+              {savingSettings ? 'Saving...' : 'Save Configuration'}
             </button>
           </div>
         </div>
@@ -997,7 +1035,9 @@ export default function AdminDashboardPage() {
                   Provision Workforce Employee
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Create a new employee identity with assigned role.
+                  Reserves a role and department for this email address. The
+                  employee still signs up themselves, and their account adopts
+                  these settings on first sign-in.
                 </p>
               </div>
               <button

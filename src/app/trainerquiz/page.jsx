@@ -1,2 +1,2 @@
-import TrainerQuizPage from '../trainer/quiz/page';
-export default TrainerQuizPage;
+import TrainerQuizIndexPage from '../trainer/quiz/page';
+export default TrainerQuizIndexPage;

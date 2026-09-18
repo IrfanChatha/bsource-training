@@ -54,6 +54,8 @@ export default function SignUpPage() {
     setLoading(true);
     try {
       // Default to 'trainee' perspective, with full capability to switch to 'trainer'
+      // Roles are never self-assigned beyond trainee here; trainers are either
+      // provisioned by an admin or switch workspace after signing in.
       const initialRole = 'trainee';
       
       const user = await supabaseService.register(
@@ -106,7 +108,7 @@ export default function SignUpPage() {
           Create Your Account
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-          One single account unlocks both <strong className="text-slate-800 dark:text-slate-200">Trainer Hub</strong> and <strong className="text-slate-800 dark:text-slate-200">Trainee Portal</strong>. Switch roles anytime with 1 click.
+          One account unlocks both the <strong className="text-slate-800 dark:text-slate-200">Trainer Hub</strong> and the <strong className="text-slate-800 dark:text-slate-200">Trainee Portal</strong>. Switch workspace at any time from your profile menu.
         </p>
       </div>
 
@@ -122,7 +124,7 @@ export default function SignUpPage() {
               Check Your Inbox
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              We've dispatched an enterprise confirmation email to:
+              We&rsquo;ve dispatched an enterprise confirmation email to:
             </p>
             <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 py-1.5 px-3 rounded-xl inline-block border border-indigo-200/50">
               {verificationSentForEmail}

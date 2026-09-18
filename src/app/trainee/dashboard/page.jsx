@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
 import TraineeMobileApp from '../mobile/page';
@@ -24,61 +24,55 @@ export default function TraineeDashboardPage() {
 
   // Auto-detect mobile screen size (< 768px)
   useEffect(() => {
-    const checkScreen = () => {
-      if (typeof window !== 'undefined') {
-        setIsMobileScreen(window.innerWidth < 768);
-      }
-    };
-    checkScreen();
+    const checkScreen = () => setIsMobileScreen(window.innerWidth < 768);
+    const raf = requestAnimationFrame(checkScreen);
     window.addEventListener('resize', checkScreen);
-    return () => window.removeEventListener('resize', checkScreen);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', checkScreen);
+    };
   }, []);
 
-  const loadTraineeData = async () => {
+  const userId = currentUser?.id;
+  const loadTraineeData = useCallback(async () => {
+    if (!userId) return;
     setLoading(true);
     try {
       const allTrainings = await supabaseService.getTrainings();
       const published = (allTrainings || []).filter((t) => t.is_published && t.status !== 'archived');
       setTrainings(published);
 
-      const quizMap = {};
-      for (const t of published) {
-        const q = await supabaseService.getQuiz(t.id);
-        if (q && q.is_published) {
-          quizMap[t.id] = q;
-        }
-      }
-      setAvailableQuizzes(quizMap);
+      const ids = published.map((t) => t.id);
 
-      const allAtts = [];
-      for (const t of published) {
-        const att = await supabaseService.getAttendance(t.id);
-        const myAtt = (att || []).filter((a) => a.trainee_id === currentUser?.id);
-        allAtts.push(...myAtt);
-      }
-      setAttendance(allAtts);
+      // One request per table instead of one per training.
+      const [quizMap, allAtt, allAttempts] = await Promise.all([
+        supabaseService.getQuizzesForTrainings(ids),
+        supabaseService.getAttendanceForTrainings(ids),
+        supabaseService.getAttemptsForTrainings(ids),
+      ]);
 
-      const allAttempts = [];
-      for (const t of published) {
-        const atts = await supabaseService.getAttemptsForTraining(t.id);
-        const myAttempts = (atts || []).filter((a) => a.trainee_id === currentUser?.id);
-        allAttempts.push(...myAttempts);
-      }
-      setAttempts(allAttempts);
-    } catch {
-      showToast('Error loading trainee dashboard', 'error');
+      const publishedQuizzes = {};
+      Object.entries(quizMap).forEach(([trainingId, quiz]) => {
+        if (quiz?.is_published) publishedQuizzes[trainingId] = quiz;
+      });
+      setAvailableQuizzes(publishedQuizzes);
+      setAttendance(allAtt.filter((a) => a.trainee_id === userId));
+      setAttempts(allAttempts.filter((a) => a.trainee_id === userId));
+    } catch (e) {
+      showToast(e?.message || 'Error loading your dashboard', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, showToast]);
 
   useEffect(() => {
-    loadTraineeData();
+    const raf = requestAnimationFrame(() => loadTraineeData());
     const unsub = supabaseService.onRealtimeUpdate(() => loadTraineeData());
     return () => {
+      cancelAnimationFrame(raf);
       if (typeof unsub === 'function') unsub();
     };
-  }, [currentUser?.id]);
+  }, [loadTraineeData]);
 
   // If on mobile screen size, auto-render native mobile view
   if (isMobileScreen) {
@@ -99,7 +93,7 @@ export default function TraineeDashboardPage() {
               Ready to verify session attendance?
             </h1>
             <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
-              Open the scanner to capture your trainer's live 60-second expiring QR token and unlock your training comprehension test.
+              Open the scanner to capture your trainer&rsquo;s live expiring QR token and unlock your training comprehension test.
             </p>
           </div>
 

@@ -46,7 +46,9 @@ export default function TrainerTrainingsPage() {
   };
 
   useEffect(() => {
-    loadTrainings();
+    const raf = requestAnimationFrame(() => loadTrainings());
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreateTraining = async (e) => {
@@ -235,7 +237,7 @@ export default function TrainerTrainingsPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/trainer/attendance`);
+                    navigate(`/trainer/attendance/${training.id}`);
                   }}
                   className="flex-1 min-w-[120px] py-2 px-3 text-xs font-semibold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
@@ -246,7 +248,7 @@ export default function TrainerTrainingsPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    navigate(`/trainer/quiz`);
+                    navigate(`/trainer/quiz/${training.id}`);
                   }}
                   className="flex-1 min-w-[120px] py-2 px-3 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >

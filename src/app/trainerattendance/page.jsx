@@ -1,2 +1,2 @@
-import TrainerAttendancePage from '../trainer/attendance/page';
-export default TrainerAttendancePage;
+import TrainerAttendanceIndexPage from '../trainer/attendance/page';
+export default TrainerAttendanceIndexPage;

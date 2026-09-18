@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { supabaseService } from "@/lib/services/supabaseService";
 import { Html5Qrcode } from "html5-qrcode";
@@ -40,7 +40,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
   const [attempts, setAttempts] = useState([]);
   const [availableQuizzes, setAvailableQuizzes] = useState({});
   const [loading, setLoading] = useState(true);
-  const [selectedTrainingId, setSelectedTrainingId] = useState("training-sec-101");
+  const [selectedTrainingId, setSelectedTrainingId] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [manualToken, setManualToken] = useState("");
   const [isProcessingAttendance, setIsProcessingAttendance] = useState(false);
@@ -67,50 +67,61 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
     const timer = setInterval(updateTime, 1e4);
     return () => clearInterval(timer);
   }, []);
-  const loadData = async () => {
+  const userId = currentUser?.id;
+  const loadData = useCallback(async () => {
+    if (!userId) return;
     setLoading(true);
     try {
       const allTrainings = await supabaseService.getTrainings();
-      const published = allTrainings.filter((t) => t.is_published && t.status !== "archived");
+      const published = (allTrainings || []).filter((t) => t.is_published && t.status !== "archived");
       setTrainings(published);
-      if (published.length > 0 && !selectedTrainingId) {
-        setSelectedTrainingId(published[0].id);
-      }
-      const qMap = {};
-      for (const t of published) {
-        const q = await supabaseService.getQuiz(t.id);
-        if (q && q.is_published) {
-          qMap[t.id] = q;
-        }
-      }
-      setAvailableQuizzes(qMap);
-      const allAtts = [];
-      for (const t of published) {
-        const attList = await supabaseService.getAttendance(t.id);
-        const myAtts = attList.filter((a) => a.trainee_id === currentUser?.id);
-        allAtts.push(...myAtts);
-      }
-      setAttendance(allAtts);
-      const allAttempts = [];
-      for (const t of published) {
-        const attList = await supabaseService.getAttemptsForTraining(t.id);
-        const myAttempts = attList.filter((a) => a.trainee_id === currentUser?.id);
-        allAttempts.push(...myAttempts);
-      }
-      setAttempts(allAttempts);
-    } catch {
-      showToast("Error syncing trainee data", "error");
+      setSelectedTrainingId((prev) => prev || published[0]?.id || "");
+
+      const ids = published.map((t) => t.id);
+
+      // One request per table instead of one per training.
+      const [quizMap, allAtt, allAttempts] = await Promise.all([
+        supabaseService.getQuizzesForTrainings(ids),
+        supabaseService.getAttendanceForTrainings(ids),
+        supabaseService.getAttemptsForTrainings(ids),
+      ]);
+
+      const publishedQuizzes = {};
+      Object.entries(quizMap).forEach(([trainingId, quiz]) => {
+        if (quiz?.is_published) publishedQuizzes[trainingId] = quiz;
+      });
+      setAvailableQuizzes(publishedQuizzes);
+      setAttendance(allAtt.filter((a) => a.trainee_id === userId));
+      setAttempts(allAttempts.filter((a) => a.trainee_id === userId));
+    } catch (e) {
+      showToast(e?.message || "Error syncing your training data", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, showToast]);
+
   useEffect(() => {
-    loadData();
+    const raf = requestAnimationFrame(() => loadData());
     const unsub = supabaseService.onRealtimeUpdate(() => loadData());
     return () => {
+      cancelAnimationFrame(raf);
       if (typeof unsub === 'function') unsub();
     };
-  }, [currentUser?.id]);
+  }, [loadData]);
+
+  const selectedTrainingRef = useRef("");
+  useEffect(() => {
+    selectedTrainingRef.current = selectedTrainingId;
+  }, [selectedTrainingId]);
+
+  function stopCamera() {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+      scannerRef.current = null;
+    }
+    setCameraActive(false);
+  }
+
   const startCamera = async () => {
     try {
       const html5QrCode = new Html5Qrcode("mobile-qr-reader");
@@ -121,16 +132,22 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
         (decodedText) => {
           stopCamera();
           let cleanToken = decodedText;
+          let scannedTrainingId = selectedTrainingRef.current;
           if (decodedText.includes("token=")) {
             try {
               const url = new URL(decodedText);
               cleanToken = url.searchParams.get("token") || decodedText;
               const trId = url.searchParams.get("trainingId");
-              if (trId) setSelectedTrainingId(trId);
+              if (trId) {
+                scannedTrainingId = trId;
+                setSelectedTrainingId(trId);
+                selectedTrainingRef.current = trId;
+              }
             } catch {
+              // Not a URL; use the scanned value as the token.
             }
           }
-          handleVerifyAttendance(cleanToken);
+          handleVerifyAttendance(cleanToken, scannedTrainingId);
         },
         () => {
         }
@@ -138,67 +155,58 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       setCameraActive(true);
     } catch {
       setCameraActive(false);
-      showToast("Camera not accessible. Please enter token or use Quick Demo Scan.", "warning");
+      showToast("Camera not accessible. Please enter token or use Use Live Token.", "warning");
     }
   };
-  const stopCamera = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {
-      });
-      scannerRef.current = null;
-    }
-    setCameraActive(false);
-  };
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
-  const handleVerifyAttendance = async (tokenToUse) => {
-    if (!tokenToUse.trim()) {
-      showToast("Please provide a valid token", "warning");
-      return;
-    }
-    setIsProcessingAttendance(true);
-    try {
-      const res = await supabaseService.markAttendanceByToken({
-        training_id: selectedTrainingId,
-        trainee_id: currentUser.id,
-        trainee_name: currentUser.full_name,
-        trainee_email: currentUser.email,
-        qr_token: tokenToUse.trim()
-      });
-      if (res.success) {
-        setAttendanceSuccess(res.message);
-        confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
-        showToast("Attendance recorded in Google Sheets database!", "success");
-        loadData();
-      } else {
-        showToast(res.message, "error");
+  useEffect(() => () => stopCamera(), []);
+  const handleVerifyAttendance = useCallback(
+    async (tokenToUse, trainingOverride) => {
+      const trainingId = trainingOverride || selectedTrainingRef.current;
+      if (!tokenToUse?.trim()) {
+        showToast("Please provide a valid token", "warning");
+        return;
       }
-    } catch (err) {
-      showToast(err.message || "Verification failed", "error");
-    } finally {
-      setIsProcessingAttendance(false);
-    }
-  };
-  const handleSimulateScan = async () => {
+      if (!trainingId) {
+        showToast("Choose the session you are attending first", "warning");
+        return;
+      }
+      setIsProcessingAttendance(true);
+      try {
+        // The token is checked against the live session on the server; the
+        // trainee identity comes from the session cookie, not from here.
+        const res = await supabaseService.markAttendance(trainingId, tokenToUse.trim());
+        if (res.success) {
+          setAttendanceSuccess(res.message);
+          confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+          showToast(res.message || "Attendance verified successfully.", "success");
+          loadData();
+        } else {
+          showToast(res.message, "error");
+        }
+      } catch (err) {
+        showToast(err?.message || "Verification failed", "error");
+      } finally {
+        setIsProcessingAttendance(false);
+      }
+    },
+    [showToast, loadData]
+  );
+
+  /** Fills in the token the trainer currently has on screen. */
+  const handleUseLiveToken = async () => {
     try {
       const session = await supabaseService.getActiveAttendanceSession(selectedTrainingId);
-      if (session && session.current_qr_token) {
+      if (session?.current_qr_token) {
         setManualToken(session.current_qr_token);
-        handleVerifyAttendance(session.current_qr_token);
+        handleVerifyAttendance(session.current_qr_token, selectedTrainingId);
       } else {
-        const dummyToken = `tt-${selectedTrainingId.slice(0, 8)}-demo-${Date.now()}`;
-        setManualToken(dummyToken);
-        handleVerifyAttendance(dummyToken);
+        showToast("No attendance session is open for this training", "warning");
       }
-    } catch {
-      const dummyToken = `tt-${selectedTrainingId.slice(0, 8)}-demo-${Date.now()}`;
-      setManualToken(dummyToken);
-      handleVerifyAttendance(dummyToken);
+    } catch (e) {
+      showToast(e?.message || "Could not read the live token", "error");
     }
   };
+
   const startQuizSession = (quiz) => {
     setActiveQuiz(quiz);
     setCurrentQIndex(0);
@@ -209,16 +217,9 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
     setActiveTab("quiz");
   };
   useEffect(() => {
-    if (!activeQuiz || isQuizSubmitted) return;
+    if (!activeQuiz || isQuizSubmitted) return undefined;
     const interval = setInterval(() => {
-      setQuizTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          submitQuizAnswers(true);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setQuizTimer((prev) => (prev <= 0 ? 0 : prev - 1));
     }, 1e3);
     return () => clearInterval(interval);
   }, [activeQuiz, isQuizSubmitted]);
@@ -231,9 +232,6 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       }));
       const res = await supabaseService.submitQuizAttempt({
         quiz_id: activeQuiz.id,
-        training_id: activeQuiz.training_id,
-        trainee_id: currentUser.id,
-        trainee_name: currentUser.full_name,
         answers: answersArray
       });
       setQuizResultAttempt(res.attempt);
@@ -241,14 +239,24 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       loadData();
       if (res.attempt.percentage >= 70) {
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
-        showToast(`Passed with ${res.attempt.score}/10 (${res.attempt.percentage}%)!`, "success");
+        showToast(`Passed with ${res.attempt.score}/${res.attempt.total_questions} (${res.attempt.percentage}%)!`, "success");
       } else {
-        showToast(`Completed. Score: ${res.attempt.score}/10 (${res.attempt.percentage}%)`, "info");
+        showToast(`Completed. Score: ${res.attempt.score}/${res.attempt.total_questions} (${res.attempt.percentage}%)`, "info");
       }
-    } catch {
-      showToast("Error saving quiz attempt", "error");
+    } catch (err) {
+      showToast(err?.message || "Error saving quiz attempt", "error");
     }
   };
+
+  // Auto-submit once the clock runs out. Triggered from an effect rather than
+  // from inside the timer's state updater, so it can only fire once.
+  useEffect(() => {
+    if (!activeQuiz || isQuizSubmitted || quizTimer !== 0) return undefined;
+    const id = setTimeout(() => submitQuizAnswers(true), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizTimer, activeQuiz, isQuizSubmitted]);
+
   const filteredTrainings = trainings.filter((t) => {
     const isAttended = attendance.some((a) => a.training_id === t.id);
     if (courseFilter === "attended" && !isAttended) return false;
@@ -401,7 +409,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 text-[10px] font-bold uppercase tracking-wider border border-indigo-400/20">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        Today's Focus
+                        Today&rsquo;s Focus
                       </span>
 
                       {hasAttendedToday ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
@@ -726,7 +734,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                   Trainee Session Check-In
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Point camera at the trainer's projection screen to verify attendance.
+                  Point camera at the trainer&rsquo;s projection screen to verify attendance.
                 </p>
               </div>
 
@@ -823,7 +831,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                   </p>
                 </div>
                 <button
-    onClick={handleSimulateScan}
+    onClick={handleUseLiveToken}
     disabled={isProcessingAttendance}
     className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] shadow-sm shrink-0 flex items-center gap-1"
   >
@@ -844,7 +852,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
     type="text"
     value={manualToken}
     onChange={(e) => setManualToken(e.target.value)}
-    placeholder="e.g. tt-training-sec-101-..."
+    placeholder="e.g. TRN-ABC123"
     className="flex-1 text-xs rounded-xl px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
   />
                   <button
@@ -965,7 +973,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                       {quizResultAttempt.percentage >= 70 ? "Congratulations! Passed" : "Assessment Completed"}
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Your score has been logged to the company Google Sheets record.
+                      Your score has been recorded against your training record.
                     </p>
                   </div>
 
@@ -1148,7 +1156,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                     <p className="text-slate-400">Verification Ledger</p>
                     <p className="font-bold text-emerald-300 flex items-center gap-1">
                       <FileSpreadsheet className="w-3 h-3" />
-                      Google Sheets
+                      Supabase
                     </p>
                   </div>
                 </div>
@@ -1199,7 +1207,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                   <span>Verified Corporate Record</span>
                 </div>
                 <p className="leading-snug text-[10px]">
-                  All check-ins and test scores are cryptographically bound and backed up to the enterprise Google Sheets master database.
+                  Check-ins are verified against a rotating token, and scores are graded server-side against the published answer key.
                 </p>
               </div>
             </div>}
@@ -1364,16 +1372,13 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
             </div>
 
             <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/60 text-xs text-slate-700 dark:text-slate-300 space-y-1 text-left">
-              <p><span className="font-bold">Score:</span> {showCertificateModal.score}/10 ({showCertificateModal.percentage}%)</p>
+              <p><span className="font-bold">Score:</span> {showCertificateModal.score}/{showCertificateModal.total_questions} ({showCertificateModal.percentage}%)</p>
               <p><span className="font-bold">Credential:</span> TT-CERT-{showCertificateModal.id.slice(-6).toUpperCase()}</p>
-              <p><span className="font-bold">Verified:</span> Synchronized to Supabase Database</p>
+              <p><span className="font-bold">Verified:</span> Recorded against your training record</p>
             </div>
 
             <button
-              onClick={() => {
-                showToast("Certificate saved to device photo roll", "success");
-                setShowCertificateModal(null);
-              }}
+              onClick={() => setShowCertificateModal(null)}
               className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 font-black text-xs cursor-pointer"
             >
               Done
