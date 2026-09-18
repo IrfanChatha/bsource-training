@@ -64,7 +64,26 @@ and an admin governance console. Next.js App Router + Supabase.
    demo trainings to you and delete the seeded demo profiles. The block refuses
    to run if the account does not exist or has never signed in.
 
-7. **Optional — AI quiz generation.** Set `ANTHROPIC_API_KEY` (or
+7. **Choose whether new signups must confirm their email.** This is a Supabase
+   setting, not an app setting — the client cannot bypass it.
+
+   **Supabase → Authentication → Sign In / Providers → Email → "Confirm email".**
+
+   - **Off** — `signUp` returns a session immediately. The app signs the person
+     in and drops them straight into their workspace. No email is sent, so none
+     of the redirect configuration in step 2 matters for signup.
+   - **On** (Supabase default) — no session is returned. The app shows a
+     "check your inbox" screen with a resend button, and `/auth/callback`
+     completes the sign-in when the link is clicked.
+
+   The app handles both without code changes. With confirmation on, make sure
+   step 2 is done or the emailed link will point at the wrong place.
+
+   Turning it off means anyone can sign up with an address they do not own.
+   That is fine for an internal tool behind SSO or a known user base; for a
+   public signup form, leave it on.
+
+8. **Optional — AI quiz generation.** Set `ANTHROPIC_API_KEY` (or
    `GEMINI_API_KEY`). The provider is chosen from the model selected in
    **Admin → System Policies**: a `claude-*` model calls Anthropic, a `gemini-*`
    model calls Google. The default is `claude-opus-5`.

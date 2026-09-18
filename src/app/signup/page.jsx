@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
+import { homeRouteFor } from '@/lib/auth/access';
 import {
   Sparkles,
   Mail,
@@ -58,7 +59,7 @@ export default function SignUpPage() {
       // provisioned by an admin or switch workspace after signing in.
       const initialRole = 'trainee';
       
-      const user = await supabaseService.register(
+      const profile = await supabaseService.register(
         email.trim(),
         password,
         fullName.trim(),
@@ -66,29 +67,20 @@ export default function SignUpPage() {
         department
       );
 
-      const enrichedUser = {
-        ...user,
-        role: initialRole,
-        department,
-        full_name: fullName.trim(),
-        name: fullName.trim(),
-      };
-
-      setCurrentUser(enrichedUser);
-      supabaseService.setCurrentUser(enrichedUser);
-
-      if (user.requiresVerification) {
+      // With email confirmation enabled in Supabase there is no session yet.
+      // Marking them as the current user here would claim a sign-in that has
+      // not happened, and the proxy would bounce them on the next navigation.
+      if (profile.requiresVerification) {
         setVerificationSentForEmail(email.trim());
-        showToast(`Verification link sent to ${email.trim()}! Please confirm your email.`, 'info');
+        showToast(`Verification link sent to ${email.trim()}. Please confirm your email.`, 'info');
         return;
       }
 
-      showToast(
-        `Welcome aboard, ${enrichedUser.full_name}! Account created successfully.`,
-        'success'
-      );
-
-      navigate('/trainee/dashboard');
+      // Confirmation is off, so signUp returned a session and the profile has
+      // already been resolved from the database.
+      setCurrentUser(profile);
+      showToast(`Welcome aboard, ${profile.full_name || fullName.trim()}!`, 'success');
+      navigate(homeRouteFor(profile.role));
     } catch (err) {
       showToast(err?.message || 'Registration failed. Please try again.', 'error');
     } finally {
