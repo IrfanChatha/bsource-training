@@ -166,12 +166,7 @@ export function Sidebar({ isOpen, onClose }) {
                 <QrCode className="w-4 h-4" />,
                 'Live 60s'
               )}
-              {navItem(
-                'AI Quiz Builder',
-                '/trainer/quiz',
-                <FileQuestion className="w-4 h-4" />,
-                '10 Qs'
-              )}
+              {navItem('AI Quiz Builder', '/trainer/quiz', <FileQuestion className="w-4 h-4" />)}
             </div>
           )}
 

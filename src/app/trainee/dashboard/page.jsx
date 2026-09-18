@@ -117,7 +117,7 @@ export default function TraineeDashboardPage() {
             Available Corporate Trainings
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Sessions scheduled for your team. Check attendance and complete the 10-question evaluation.
+            Sessions scheduled for your team. Check attendance and complete the evaluation.
           </p>
         </div>
 
@@ -214,7 +214,9 @@ export default function TraineeDashboardPage() {
                         }`}
                       >
                         <FileQuestion className="w-3.5 h-3.5" />
-                        {pastAttempt ? `Review Score (${pastAttempt.score}/10)` : 'Start 10-Q Quiz'}
+                        {pastAttempt
+                          ? `Review Score (${pastAttempt.score}/${pastAttempt.total_questions})`
+                          : `Start ${quiz.questions.length}-Q Quiz`}
                       </button>
                     )}
                   </div>

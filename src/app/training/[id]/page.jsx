@@ -141,7 +141,7 @@ export default function TrainingDetailsPage({ params }) {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
             <FileQuestion className="w-3.5 h-3.5" />
-            AI Quiz Studio (10 Qs)
+            AI Quiz Studio
           </button>
         </div>
       </div>
@@ -374,7 +374,7 @@ If an enterprise endpoint is lost, stolen, or exhibits unauthorized activity, th
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />
-                <span>2. Generate & publish 10-question AI quiz</span>
+                <span>2. Generate & publish the AI quiz</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-indigo-500 shrink-0" />

@@ -13,7 +13,7 @@ export const ROLES = ['admin', 'trainer', 'trainee'];
 export const SELF_ASSIGNABLE_ROLES = ['trainer', 'trainee'];
 
 /** Routes reachable without a session. */
-export const PUBLIC_ROUTES = ['/', '/login', '/signup', '/register'];
+export const PUBLIC_ROUTES = ['/', '/login', '/signup', '/register', '/auth/callback'];
 
 /**
  * Prefix -> roles allowed. Longest matching prefix wins, so `/trainer/quiz`
@@ -43,7 +43,14 @@ export function isPublicRoute(pathname) {
   return PUBLIC_ROUTES.includes(pathname);
 }
 
-/** Roles allowed on `pathname`, or `null` when any signed-in role may enter. */
+/**
+ * Roles allowed on `pathname`, or `null` when any signed-in role may enter.
+ *
+ * Matching is on whole segments, so `/trainerfoo` does not inherit the
+ * `/trainer` rule. An unmapped path still requires a session; it just has no
+ * role restriction. New pages under `/admin/*` or `/trainer/*` are covered
+ * automatically because those prefixes match the whole subtree.
+ */
 export function allowedRolesFor(pathname) {
   let match = null;
   for (const [prefix, roles] of ROUTE_ROLES) {

@@ -1,11 +1,13 @@
 import { supabase } from './supabaseService';
+import { getAuthCallbackUrl } from '../auth/site-url';
 
 export const googleSignIn = async () => {
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}` : undefined,
+        // Must land on the callback so the code is exchanged for a session.
+        redirectTo: getAuthCallbackUrl(),
       },
     });
     if (error) throw error;

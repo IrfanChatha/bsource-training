@@ -205,7 +205,10 @@ export function QuizStudio({ trainingId }) {
     );
   }
 
+  // How many to generate next, versus how many this quiz actually has. The
+  // header used to show the target even when a shorter quiz was loaded.
   const targetCount = settings.default_question_count || 10;
+  const actualCount = questions.length;
 
   return (
     <div className="space-y-6">
@@ -221,7 +224,9 @@ export function QuizStudio({ trainingId }) {
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50">
-                {targetCount} Multiple-Choice Questions
+                {actualCount > 0
+                  ? `${actualCount} Multiple-Choice Question${actualCount === 1 ? '' : 's'}`
+                  : `Target: ${targetCount} Questions`}
               </span>
               {isPublished && (
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50">

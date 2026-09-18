@@ -27,6 +27,10 @@ function LoginForm() {
   const [unconfirmedEmail, setUnconfirmedEmail] = useState(null);
   const [resendSuccess, setResendSuccess] = useState(false);
 
+  // /auth/callback sends people back here with a reason when a confirmation
+  // link could not be used.
+  const callbackError = searchParams.get('error');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password) {
@@ -90,6 +94,16 @@ function LoginForm() {
             Enter your verified email and password to access your role dashboard.
           </p>
         </div>
+
+        {callbackError && (
+          <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 flex items-start gap-2.5 text-xs text-rose-900 dark:text-rose-200">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Confirmation link problem</p>
+              <p className="mt-0.5">{callbackError}</p>
+            </div>
+          </div>
+        )}
 
         {/* Unconfirmed Email Verification Alert */}
         {unconfirmedEmail && (

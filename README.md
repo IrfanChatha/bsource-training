@@ -9,13 +9,24 @@ and an admin governance console. Next.js App Router + Supabase.
    your Supabase URL and publishable key. There are no inline fallbacks: the app
    fails to start rather than connecting to an unexpected project.
 
-2. **Create the schema.** Run `supabase_schema.sql` in the Supabase SQL editor.
+2. **Set the public site URL.** Add `NEXT_PUBLIC_SITE_URL` (your deployed
+   origin, no trailing slash), then in the Supabase dashboard go to
+   **Authentication -> URL Configuration** and add
+   `<that value>/auth/callback` to **Redirect URLs**.
+
+   Confirmation emails are built by Supabase as
+   `…/auth/v1/verify?…&redirect_to=<app>/auth/callback`. If the app sends no
+   redirect, Supabase falls back to the project's Site URL — normally
+   `http://localhost:3000` — so emails from a deployment send people to their
+   own machine. `/auth/callback` is what exchanges the code for a session.
+
+3. **Create the schema.** Run `supabase_schema.sql` in the Supabase SQL editor.
 
    The `DROP TABLE` block near the top is commented out, because running it
    unconditionally wipes every profile, training, attendance record and quiz
    attempt. Uncomment it only when you mean to rebuild from scratch.
 
-3. **Apply the security migration — required.** Run
+4. **Apply the security migration — required.** Run
    `supabase/migrations/0001_security_and_settings.sql`.
 
    `supabase_schema.sql` enables row level security but defines no policies, so
@@ -31,7 +42,7 @@ and an admin governance console. Next.js App Router + Supabase.
      submitted score is ignored
    - the `training-materials` storage bucket
 
-4. **Optional — put the role in the JWT.** `src/proxy.js` trusts
+5. **Optional — put the role in the JWT.** `src/proxy.js` trusts
    `app_metadata.role` for its edge-side redirect, and ignores
    `user_metadata.role` because a user can set that themselves with
    `auth.updateUser`. The last section of the migration has a commented-out
@@ -41,22 +52,19 @@ and an admin governance console. Next.js App Router + Supabase.
    enforcement then rests on the database-backed guard in `AppContext` and on
    row level security. That is one fewer layer, not a hole.
 
-5. **Create the first admin.** Sign in to the app once — that is when your
+6. **Create the first admin.** Sign in to the app once — that is when your
    `profiles` row is created, as a `trainee`. Then open
-   `supabase/migrations/0002_bootstrap_admin.sql`, change the single marked
-   email line, paste the whole file into the Supabase SQL editor and run it.
+   `supabase/migrations/0002_bootstrap_admin.sql`, set `target_email` at the top
+   of the block, paste the whole file into the Supabase SQL editor and run it.
    Sign out and back in afterwards so a fresh token carries the new claim.
-   The file checks the account exists and has signed in, and stops with a clear
-   message if not.
 
-   Nobody can grant themselves `admin` through the app; the
-   `profiles_update_self` policy only allows moving between `trainer` and
-   `trainee`. The first admin has to come from the SQL editor. That file also
-   has optional steps to adopt the seeded demo trainings (they are assigned to
-   `usr_trainer_01`, which is not a real account, so no trainer can run
-   attendance on them) and to delete the seeded demo profiles.
+   It is deliberately a single `do $$ ... $$` statement: the SQL editor pools
+   connections, so a temp table or session variable would not survive to the
+   next statement. Two optional flags in the same block reassign the seeded
+   demo trainings to you and delete the seeded demo profiles. The block refuses
+   to run if the account does not exist or has never signed in.
 
-6. **Optional — AI quiz generation.** Set `GEMINI_API_KEY`. Without it
+7. **Optional — AI quiz generation.** Set `GEMINI_API_KEY`. Without it
    `/api/quiz/generate` returns template questions and says so in its response,
    rather than presenting them as AI output.
 
@@ -78,6 +86,8 @@ npm run lint
 | `src/lib/services/fileExtractor.js` | PDF / DOCX / PPTX / TXT text extraction |
 | `src/app/api/attendance/mark` | Validates a QR token against the live session |
 | `src/app/api/quiz/submit` | Grades an attempt against the answer key |
+| `src/app/auth/callback` | Exchanges an email-confirmation code for a session |
+| `src/lib/auth/site-url.js` | Resolves the public origin for redirect links |
 
 ## Security model
 

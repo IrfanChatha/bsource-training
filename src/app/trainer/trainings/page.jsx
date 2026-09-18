@@ -253,7 +253,7 @@ export default function TrainerTrainingsPage() {
                   className="flex-1 min-w-[120px] py-2 px-3 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <FileQuestion className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>AI Quiz (10 Qs)</span>
+                  <span>AI Quiz</span>
                 </button>
 
                 <button

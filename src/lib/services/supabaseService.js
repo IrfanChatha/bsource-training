@@ -2,6 +2,7 @@ import { createClient } from '../../utils/supabase/client.js';
 import { STORAGE_KEYS, readStored, writeStored, clearStored } from '../storage';
 import { extractTextFromFile } from './fileExtractor';
 import { SELF_ASSIGNABLE_ROLES } from '../auth/access';
+import { getAuthCallbackUrl } from '../auth/site-url';
 
 export const supabase = createClient();
 
@@ -348,7 +349,11 @@ export class SupabaseService {
   }
 
   async resendVerificationEmail(email) {
-    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: getAuthCallbackUrl() },
+    });
     if (error) throw error;
     return { success: true };
   }
@@ -366,6 +371,10 @@ export class SupabaseService {
       password,
       options: {
         data: { full_name: displayName, role: safeRole, department },
+        // Without this Supabase uses the project's Site URL, which points at
+        // localhost, so confirmation emails sent from a deployment were
+        // unusable for anyone but the developer.
+        emailRedirectTo: getAuthCallbackUrl(),
       },
     });
 
