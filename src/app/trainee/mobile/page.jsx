@@ -3,7 +3,7 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { supabaseService } from "@/lib/services/supabaseService";
 import { Html5Qrcode } from "html5-qrcode";
-import { cameraUnavailableReason, describeCameraError, qrboxFor } from "@/lib/camera";
+import { cameraUnavailableReason, describeCameraError, scannerConfig, QRBOX_RATIO } from "@/lib/camera";
 import { supabaseService as authService } from "@/lib/services/supabaseService";
 import confetti from "canvas-confetti";
 import {
@@ -178,7 +178,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
       scannerRef.current = html5QrCode;
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: qrboxFor },
+        scannerConfig(),
         (decodedText) => {
           stopCamera();
           let cleanToken = decodedText;
@@ -915,7 +915,10 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                       {
     /* Viewfinder Reticle */
   }
-                      <div className="w-48 h-48 border-2 border-dashed border-emerald-400 rounded-3xl relative animate-pulse">
+                      <div
+                        className="border-2 border-dashed border-emerald-400 rounded-3xl relative animate-pulse"
+                        style={{ width: `${QRBOX_RATIO * 100}%`, aspectRatio: "1 / 1" }}
+                      >
                         <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 -mt-1 -ml-1 rounded-tl-lg" />
                         <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 -mt-1 -mr-1 rounded-tr-lg" />
                         <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 -mb-1 -ml-1 rounded-bl-lg" />
@@ -926,7 +929,7 @@ export default function TraineeMobileApp({ embedded = false } = {}) {
                         <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_8px_#10b981] animate-bounce" />
                       </div>
                       <p className="text-[10px] text-emerald-300 font-mono mt-3 bg-black/60 px-2 py-0.5 rounded-full">
-                        Align QR code within reticle
+                        Fill the frame with the code &middot; hold steady
                       </p>
                     </div>}
                 </div>

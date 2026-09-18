@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabaseService } from '@/lib/services/supabaseService';
 import { Html5Qrcode } from 'html5-qrcode';
-import { cameraUnavailableReason, describeCameraError, qrboxFor } from '@/lib/camera';
+import { cameraUnavailableReason, describeCameraError, scannerConfig } from '@/lib/camera';
 import {
   QrCode,
   CheckCircle2,
@@ -128,7 +128,7 @@ export default function QRScannerPage() {
 
       await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: qrboxFor },
+        scannerConfig(),
         (decodedText) => {
           stopCamera();
 

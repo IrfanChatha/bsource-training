@@ -50,11 +50,48 @@ export function describeCameraError(err) {
 }
 
 /**
+ * The fraction of the viewfinder used as the scan region. Only pixels inside
+ * this box are decoded, so a tight box means the user has to aim precisely at
+ * a code they are photographing off a screen. Keep it generous.
+ */
+export const QRBOX_RATIO = 0.9;
+
+/**
  * html5-qrcode measures its container, so a box larger than the video stream
  * throws. Sizing it from the actual element keeps it valid on any screen.
  */
 export function qrboxFor(viewfinderWidth, viewfinderHeight) {
   const smallest = Math.min(viewfinderWidth || 0, viewfinderHeight || 0);
-  const size = Math.max(140, Math.floor(smallest * 0.7));
+  const size = Math.max(140, Math.floor(smallest * QRBOX_RATIO));
   return { width: size, height: size };
+}
+
+/**
+ * Scanner configuration shared by both QR screens.
+ *
+ * Reading a QR code off a projector or laptop screen is much harder than
+ * reading one off paper — it is lower contrast, often out of focus, and can
+ * moire against the sensor. Three things matter:
+ *
+ *  - `useBarCodeDetectorIfSupported` hands decoding to the platform's native
+ *    BarcodeDetector where it exists (Android Chrome), which is far more
+ *    tolerant than the JavaScript decoder.
+ *  - a high-resolution stream with continuous autofocus, so the code is
+ *    actually in focus and has enough pixels per module.
+ *  - a higher frame rate, giving more decode attempts per second.
+ */
+export function scannerConfig() {
+  return {
+    fps: 15,
+    qrbox: qrboxFor,
+    aspectRatio: 1.0,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    videoConstraints: {
+      facingMode: 'environment',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      // Not every device honours this; it is ignored where unsupported.
+      advanced: [{ focusMode: 'continuous' }],
+    },
+  };
 }

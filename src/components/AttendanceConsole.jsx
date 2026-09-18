@@ -145,6 +145,11 @@ export function AttendanceConsole({ trainingId }) {
     return () => clearTimeout(id);
   }, [timeLeft, session, rotateToken, canManage]);
 
+  // Error correction "M" rather than "H" for the projected code: H adds 30%
+  // redundancy, which means many more modules for the same payload and far
+  // smaller squares once a phone photographs it off a screen. This code is on
+  // a monitor a metre away, not a scuffed parcel label, so the redundancy buys
+  // nothing and costs legibility.
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const qrPayload = session
     ? `${origin}/scan?trainingId=${encodeURIComponent(trainingId)}&token=${encodeURIComponent(session.current_qr_token)}`
@@ -258,7 +263,13 @@ export function AttendanceConsole({ trainingId }) {
 
           <div className="my-6 p-5 rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col items-center justify-center relative">
             {session ? (
-              <QRCodeSVG value={qrPayload} size={230} level="H" marginSize={2} className="rounded-xl" />
+              <QRCodeSVG
+                value={qrPayload}
+                size={264}
+                level="M"
+                marginSize={4}
+                className="rounded-xl"
+              />
             ) : (
               <div className="w-56 h-56 flex items-center justify-center text-slate-400 text-xs px-6 text-center">
                 {canManage
