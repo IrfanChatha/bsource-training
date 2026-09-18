@@ -31,6 +31,32 @@ export async function proxy(request) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+  const params = request.nextUrl.searchParams;
+
+  // Supabase validates `redirect_to` against the dashboard's Redirect URLs
+  // allow-list and, when it does not match, silently falls back to the
+  // project's Site URL. That drops a confirmation code on "/" (or wherever
+  // Site URL points) where nothing handles it, and the link looks broken.
+  //
+  // Rather than depending on that config being right, forward any auth code
+  // that lands on the wrong path to the callback, which is the only place that
+  // knows how to exchange it.
+  const hasAuthCode =
+    params.has('code') ||
+    (params.has('token_hash') && params.has('type')) ||
+    params.has('error_description');
+
+  if (hasAuthCode && pathname !== '/auth/callback') {
+    const forwarded = new URL('/auth/callback', request.url);
+    params.forEach((value, key) => forwarded.searchParams.set(key, value));
+    // Preserve where they were headed, unless the link already said. Landing
+    // pages are not destinations - sending someone back to /login right after
+    // confirming would be a loop in all but name.
+    if (!forwarded.searchParams.has('next') && !isPublicRoute(pathname)) {
+      forwarded.searchParams.set('next', pathname);
+    }
+    return NextResponse.redirect(forwarded);
+  }
 
   if (!user) {
     if (isPublicRoute(pathname)) return response;

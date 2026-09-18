@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
+import { homeRouteFor } from '@/lib/auth/access';
 
 /**
  * Lands the user after they click a confirmation or password-reset link.
@@ -52,8 +53,28 @@ export async function GET(request) {
     );
   }
 
-  // The session cookie is set; send them somewhere useful. A `next` that is not
-  // a local path is ignored, so the link cannot be used as an open redirect.
-  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/trainee/dashboard';
+  // The session cookie is set; send them somewhere useful. Without an explicit
+  // `next`, land them in the workspace their role actually opens rather than
+  // assuming the trainee portal.
+  let fallback = '/trainee/dashboard';
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      fallback = homeRouteFor(profile?.role);
+    }
+  } catch {
+    // A profile read failure should not strand a freshly confirmed account.
+  }
+
+  // A `next` that is not a local path is ignored, so a confirmation link
+  // cannot be turned into an open redirect.
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : fallback;
   return NextResponse.redirect(new URL(safeNext, origin));
 }
